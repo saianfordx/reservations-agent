@@ -1,9 +1,12 @@
 'use client';
 
 import { Button } from '@/shared/components/ui/button';
+import { EditAgentDialog } from './EditAgentDialog';
 
 interface Agent {
   _id: string;
+  elevenLabsAgentId: string;
+  elevenLabsVoiceId: string;
   name: string;
   voiceName: string;
   phoneNumber: string;
@@ -17,9 +20,10 @@ interface Agent {
 
 interface AgentCardProps {
   agent: Agent;
+  onUpdate?: () => void;
 }
 
-export function AgentCard({ agent }: AgentCardProps) {
+export function AgentCard({ agent, onUpdate }: AgentCardProps) {
   const copyPhoneNumber = () => {
     navigator.clipboard.writeText(agent.phoneNumber);
   };
@@ -80,9 +84,7 @@ export function AgentCard({ agent }: AgentCardProps) {
       </div>
 
       <div className="mt-4 pt-4 border-t flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1">
-          Configure
-        </Button>
+        <EditAgentDialog agent={agent} onSuccess={onUpdate} />
         <Button variant="outline" size="sm" className="flex-1">
           View Calls
         </Button>

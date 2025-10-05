@@ -47,6 +47,8 @@ export function useCreateAgent() {
 
       // Step 2: Provision phone number via Twilio (optional - may fail if not configured)
       let phoneNumber = 'Not configured';
+      let elevenLabsPhoneNumberId: string | undefined;
+
       try {
         const phoneResponse = await fetch('/api/twilio/provision-number', {
           method: 'POST',
@@ -60,6 +62,7 @@ export function useCreateAgent() {
         if (phoneResponse.ok) {
           const phoneData = await phoneResponse.json();
           phoneNumber = phoneData.phoneNumber;
+          elevenLabsPhoneNumberId = phoneData.elevenLabsPhoneNumberId;
           console.log('Phone number provisioned:', phoneNumber);
         } else {
           const error = await phoneResponse.json();
@@ -119,6 +122,7 @@ export function useCreateAgent() {
         restaurantId: params.restaurantId,
         elevenLabsAgentId,
         elevenLabsVoiceId: params.voiceId,
+        elevenLabsPhoneNumberId,
         voiceName: params.voiceName,
         name: params.agentName,
         greeting: params.greeting,

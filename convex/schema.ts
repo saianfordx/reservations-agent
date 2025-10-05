@@ -105,6 +105,7 @@ export default defineSchema({
     // ElevenLabs IDs
     elevenLabsAgentId: v.string(),
     elevenLabsVoiceId: v.string(),
+    elevenLabsPhoneNumberId: v.optional(v.string()),
     phoneNumber: v.string(),
 
     // Agent Configuration

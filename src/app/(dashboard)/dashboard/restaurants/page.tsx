@@ -1,11 +1,32 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import { Button } from '@/shared/components/ui/button';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 
 export default function RestaurantsPage() {
+  const router = useRouter();
+  const { isSignedIn, isLoaded } = useAuth();
   const { restaurants, isLoading } = useRestaurants();
+
+  // Auth guard - redirect to sign in if not authenticated
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push('/sign-in');
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  // Show loading while checking auth
+  if (!isLoaded || !isSignedIn) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground/80">Loading...</div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

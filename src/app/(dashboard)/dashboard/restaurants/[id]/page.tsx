@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
 import { useAgents } from '@/features/agents/hooks/useAgents';
 import { Button } from '@/shared/components/ui/button';
@@ -10,11 +11,29 @@ import { AgentCard } from '@/features/agents/components/AgentCard';
 import { Id } from '../../../../../../convex/_generated/dataModel';
 
 export default function RestaurantDetailPage() {
+  const router = useRouter();
+  const { isSignedIn, isLoaded } = useAuth();
   const params = useParams();
   const restaurantId = params.id as Id<'restaurants'>;
   const { restaurant, isLoading } = useRestaurant(restaurantId);
   const { agents, isLoading: agentsLoading } = useAgents(restaurantId);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Auth guard - redirect to sign in if not authenticated
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push('/sign-in');
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  // Show loading while checking auth
+  if (!isLoaded || !isSignedIn) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground/80">Loading...</div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

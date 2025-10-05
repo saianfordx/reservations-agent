@@ -33,6 +33,7 @@ export const create = mutation({
     restaurantId: v.id('restaurants'),
     elevenLabsAgentId: v.string(),
     elevenLabsVoiceId: v.string(),
+    elevenLabsPhoneNumberId: v.optional(v.string()),
     voiceName: v.string(),
     name: v.string(),
     greeting: v.string(),
@@ -56,6 +57,7 @@ export const create = mutation({
       ownerId: user._id,
       elevenLabsAgentId: args.elevenLabsAgentId,
       elevenLabsVoiceId: args.elevenLabsVoiceId,
+      elevenLabsPhoneNumberId: args.elevenLabsPhoneNumberId,
       phoneNumber: args.phoneNumber,
       name: args.name,
       voiceName: args.voiceName,
@@ -99,5 +101,41 @@ export const updateDocuments = mutation({
       documents: args.documents,
       updatedAt: Date.now(),
     });
+  },
+});
+
+// Update agent settings (name, voice, greeting)
+export const update = mutation({
+  args: {
+    agentId: v.id('agents'),
+    name: v.optional(v.string()),
+    voiceId: v.optional(v.string()),
+    voiceName: v.optional(v.string()),
+    greeting: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error('Not authenticated');
+
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) throw new Error('Agent not found');
+
+    const updates: any = {
+      updatedAt: Date.now(),
+    };
+
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.voiceId !== undefined) updates.elevenLabsVoiceId = args.voiceId;
+    if (args.voiceName !== undefined) updates.voiceName = args.voiceName;
+    if (args.greeting !== undefined) {
+      updates.agentConfig = {
+        ...agent.agentConfig,
+        greeting: args.greeting,
+      };
+    }
+
+    await ctx.db.patch(args.agentId, updates);
+
+    return { success: true };
   },
 });
