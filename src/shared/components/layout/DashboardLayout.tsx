@@ -1,9 +1,10 @@
 'use client';
 
-import { UserButton } from '@clerk/nextjs';
+import { UserButton, OrganizationSwitcher } from '@clerk/nextjs';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useOrganizationSync } from '@/features/organizations/hooks';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -20,16 +21,25 @@ const navigation = [
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
 
+  // Sync organization with Convex
+  useOrganizationSync();
+
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
       <aside className="hidden w-64 border-r bg-muted/40 lg:block">
         <div className="flex h-full flex-col">
-          {/* Logo */}
+          {/* Organization Switcher */}
           <div className="flex h-16 items-center border-b px-6">
-            <Link href="/dashboard" className="text-xl font-bold">
-              AI Reservations
-            </Link>
+            <OrganizationSwitcher
+              hidePersonal={false}
+              appearance={{
+                elements: {
+                  rootBox: "flex items-center w-full",
+                  organizationSwitcherTrigger: "text-sm font-semibold w-full justify-start",
+                },
+              }}
+            />
           </div>
 
           {/* Navigation */}

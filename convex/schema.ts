@@ -10,9 +10,11 @@ export default defineSchema({
     clerkId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
-    role: v.string(), // owner, admin
-    subscriptionTier: v.string(), // free, pro, enterprise
-    subscriptionStatus: v.string(), // active, cancelled, past_due
+    imageUrl: v.optional(v.string()),
+    // Deprecated fields (kept for migration)
+    role: v.optional(v.string()),
+    subscriptionTier: v.optional(v.string()),
+    subscriptionStatus: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -20,11 +22,46 @@ export default defineSchema({
     .index('by_email', ['email']),
 
   // ============================================
+  // ORGANIZATIONS
+  // ============================================
+
+  organizations: defineTable({
+    clerkOrganizationId: v.string(),
+    name: v.string(),
+    slug: v.string(),
+    imageUrl: v.optional(v.string()),
+    createdBy: v.id('users'),
+    subscriptionTier: v.string(), // free, pro, enterprise
+    subscriptionStatus: v.string(), // active, cancelled, past_due
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_clerk_organization_id', ['clerkOrganizationId'])
+    .index('by_slug', ['slug'])
+    .index('by_created_by', ['createdBy']),
+
+  organizationMemberships: defineTable({
+    organizationId: v.id('organizations'),
+    userId: v.id('users'),
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
+    role: v.string(), // org:admin, org:member, or custom role (synced from Clerk)
+    permissions: v.array(v.string()), // Array of permission strings (synced from Clerk)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_user', ['userId'])
+    .index('by_organization_and_user', ['organizationId', 'userId'])
+    .index('by_clerk_org_and_user', ['clerkOrganizationId', 'clerkUserId']),
+
+  // ============================================
   // RESTAURANTS
   // ============================================
 
   restaurants: defineTable({
-    ownerId: v.id('users'),
+    organizationId: v.optional(v.id('organizations')), // Made optional for migration
+    ownerId: v.optional(v.id('users')), // Deprecated, keeping for migration
     name: v.string(),
     description: v.optional(v.string()),
     cuisine: v.optional(v.string()),
@@ -91,6 +128,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index('by_organization', ['organizationId'])
     .index('by_owner', ['ownerId'])
     .index('by_status', ['status']),
 
@@ -100,7 +138,8 @@ export default defineSchema({
 
   agents: defineTable({
     restaurantId: v.id('restaurants'),
-    ownerId: v.id('users'),
+    organizationId: v.optional(v.id('organizations')), // Made optional for migration
+    ownerId: v.optional(v.id('users')), // Deprecated, keeping for migration
 
     // ElevenLabs IDs
     elevenLabsAgentId: v.string(),
@@ -148,7 +187,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_restaurant', ['restaurantId'])
-    .index('by_owner', ['ownerId'])
+    .index('by_organization', ['organizationId'])
     .index('by_elevenlabs_agent_id', ['elevenLabsAgentId'])
     .index('by_phone_number', ['phoneNumber'])
     .index('by_status', ['status']),

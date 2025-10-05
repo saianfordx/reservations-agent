@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useOrganization } from '@clerk/nextjs';
 import { RestaurantForm } from '@/features/restaurants/components/RestaurantForm';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 import { RestaurantFormData } from '@/features/restaurants/types/restaurant.types';
@@ -8,13 +9,17 @@ import { useState } from 'react';
 
 export default function CreateRestaurantPage() {
   const router = useRouter();
+  const { organization } = useOrganization();
   const { createRestaurant } = useRestaurants();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (data: RestaurantFormData) => {
     try {
       setIsLoading(true);
-      await createRestaurant(data);
+      await createRestaurant({
+        ...data,
+        clerkOrganizationId: organization?.id,
+      });
       router.push('/dashboard/restaurants');
     } catch (error) {
       console.error('Failed to create restaurant:', error);

@@ -217,10 +217,11 @@ export const listByRestaurant = query({
     let reservations;
 
     if (args.status) {
+      const status = args.status;
       reservations = await ctx.db
         .query('reservations')
         .withIndex('by_restaurant_status', (q) =>
-          q.eq('restaurantId', args.restaurantId).eq('status', args.status)
+          q.eq('restaurantId', args.restaurantId).eq('status', status)
         )
         .collect();
     } else {

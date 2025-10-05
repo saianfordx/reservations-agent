@@ -2,10 +2,12 @@ import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { auth } from '@clerk/nextjs/server';
 
-// Get all restaurants for the current user
+// Get all restaurants for the current user or organization
 export const getMyRestaurants = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    clerkOrganizationId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error('Not authenticated');
@@ -20,6 +22,45 @@ export const getMyRestaurants = query({
       throw new Error('User not found');
     }
 
+    // If organization context is provided, query by organization
+    if (args.clerkOrganizationId) {
+      const clerkOrgId = args.clerkOrganizationId;
+      // Find the organization in Convex
+      const organization = await ctx.db
+        .query('organizations')
+        .withIndex('by_clerk_organization_id', (q) =>
+          q.eq('clerkOrganizationId', clerkOrgId)
+        )
+        .first();
+
+      if (!organization) {
+        // Organization not synced yet, return empty array
+        return [];
+      }
+
+      // Verify user is a member of this organization
+      const membership = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_clerk_org_and_user', (q) =>
+          q.eq('clerkOrganizationId', clerkOrgId).eq('clerkUserId', identity.subject)
+        )
+        .first();
+
+      if (!membership) {
+        throw new Error('Not a member of this organization');
+      }
+
+      // Query restaurants by organization
+      const restaurants = await ctx.db
+        .query('restaurants')
+        .withIndex('by_organization', (q) => q.eq('organizationId', organization._id))
+        .order('desc')
+        .collect();
+
+      return restaurants;
+    }
+
+    // Personal account context - query by owner
     const restaurants = await ctx.db
       .query('restaurants')
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
@@ -45,14 +86,36 @@ export const getRestaurant = query({
       throw new Error('Restaurant not found');
     }
 
-    // Verify ownership
     const user = await ctx.db
       .query('users')
       .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
       .first();
 
-    if (!user || restaurant.ownerId !== user._id) {
-      throw new Error('Unauthorized');
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify access - either organization member or personal owner
+    if (restaurant.organizationId) {
+      const orgId = restaurant.organizationId;
+      // Check organization membership
+      const membership = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_organization_and_user', (q) =>
+          q.eq('organizationId', orgId).eq('userId', user._id)
+        )
+        .first();
+
+      if (!membership) {
+        throw new Error('Unauthorized');
+      }
+    } else if (restaurant.ownerId) {
+      // Check personal ownership
+      if (restaurant.ownerId !== user._id) {
+        throw new Error('Unauthorized');
+      }
+    } else {
+      throw new Error('Restaurant has no owner or organization');
     }
 
     return restaurant;
@@ -62,6 +125,7 @@ export const getRestaurant = query({
 // Create a new restaurant
 export const createRestaurant = mutation({
   args: {
+    clerkOrganizationId: v.optional(v.string()),
     name: v.string(),
     description: v.optional(v.string()),
     cuisine: v.optional(v.string()),
@@ -142,8 +206,50 @@ export const createRestaurant = mutation({
 
     const now = Date.now();
 
+    let organizationId: any = undefined;
+    let ownerId: any = undefined;
+
+    // If organization context is provided, create restaurant for organization
+    if (args.clerkOrganizationId) {
+      const clerkOrgId = args.clerkOrganizationId;
+      // Find the organization in Convex
+      const organization = await ctx.db
+        .query('organizations')
+        .withIndex('by_clerk_organization_id', (q) =>
+          q.eq('clerkOrganizationId', clerkOrgId)
+        )
+        .first();
+
+      if (!organization) {
+        throw new Error('Organization not found');
+      }
+
+      // Verify user is a member with appropriate permissions
+      const membership = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_clerk_org_and_user', (q) =>
+          q.eq('clerkOrganizationId', clerkOrgId).eq('clerkUserId', identity.subject)
+        )
+        .first();
+
+      if (!membership) {
+        throw new Error('Not a member of this organization');
+      }
+
+      // Check if user has permission to create restaurants (admins can)
+      if (membership.role !== 'org:admin' && !membership.permissions.includes('org:restaurant:create')) {
+        throw new Error('Insufficient permissions to create restaurant');
+      }
+
+      organizationId = organization._id;
+    } else {
+      // Personal account context
+      ownerId = user._id;
+    }
+
     const restaurantId = await ctx.db.insert('restaurants', {
-      ownerId: user._id,
+      organizationId,
+      ownerId,
       name: args.name,
       description: args.description,
       cuisine: args.cuisine,
@@ -248,14 +354,41 @@ export const updateRestaurant = mutation({
       throw new Error('Restaurant not found');
     }
 
-    // Verify ownership
     const user = await ctx.db
       .query('users')
       .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
       .first();
 
-    if (!user || restaurant.ownerId !== user._id) {
-      throw new Error('Unauthorized');
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify access - either organization member with permissions or personal owner
+    if (restaurant.organizationId) {
+      const orgId = restaurant.organizationId;
+      // Check organization membership
+      const membership = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_organization_and_user', (q) =>
+          q.eq('organizationId', orgId).eq('userId', user._id)
+        )
+        .first();
+
+      if (!membership) {
+        throw new Error('Unauthorized');
+      }
+
+      // Check permissions
+      if (membership.role !== 'org:admin' && !membership.permissions.includes('org:restaurant:update')) {
+        throw new Error('Insufficient permissions to update restaurant');
+      }
+    } else if (restaurant.ownerId) {
+      // Check personal ownership
+      if (restaurant.ownerId !== user._id) {
+        throw new Error('Unauthorized');
+      }
+    } else {
+      throw new Error('Restaurant has no owner or organization');
     }
 
     const { id, ...updates } = args;
@@ -284,14 +417,41 @@ export const deleteRestaurant = mutation({
       throw new Error('Restaurant not found');
     }
 
-    // Verify ownership
     const user = await ctx.db
       .query('users')
       .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
       .first();
 
-    if (!user || restaurant.ownerId !== user._id) {
-      throw new Error('Unauthorized');
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify access - either organization member with permissions or personal owner
+    if (restaurant.organizationId) {
+      const orgId = restaurant.organizationId;
+      // Check organization membership
+      const membership = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_organization_and_user', (q) =>
+          q.eq('organizationId', orgId).eq('userId', user._id)
+        )
+        .first();
+
+      if (!membership) {
+        throw new Error('Unauthorized');
+      }
+
+      // Check permissions
+      if (membership.role !== 'org:admin' && !membership.permissions.includes('org:restaurant:delete')) {
+        throw new Error('Insufficient permissions to delete restaurant');
+      }
+    } else if (restaurant.ownerId) {
+      // Check personal ownership
+      if (restaurant.ownerId !== user._id) {
+        throw new Error('Unauthorized');
+      }
+    } else {
+      throw new Error('Restaurant has no owner or organization');
     }
 
     // Archive instead of delete
