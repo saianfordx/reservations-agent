@@ -1,0 +1,27 @@
+# Claude Code Rules for AI Reservations
+
+## Project Structure
+- All source code is in `src/` directory
+- Use `@/` for imports (maps to `src/`)
+- Feature-based organization under `src/modules/`
+- Shared components in `src/shared/`
+- App Router in `src/app/`
+
+## Code Standards
+- 100% TypeScript (no .js files)
+- Use `"use client"` directive when needed
+- Extract logic into custom hooks
+- Follow RULES.md guidelines
+
+## Import Paths
+Always use `@/` alias:
+- `@/shared/components/ui/button`
+- `@/modules/dashboard/components/DashboardContainer`
+- `@/lib/utils`
+- `@/providers/ConvexClientProvider`
+
+## Current Phase: Phase 1 Complete
+- ✅ Landing page
+- ✅ Authentication (Clerk)
+- ✅ Dashboard layout
+- ✅ Convex backend setup
