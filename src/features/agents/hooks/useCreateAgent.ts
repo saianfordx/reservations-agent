@@ -1,0 +1,167 @@
+'use client';
+
+import { useState } from 'react';
+import { useMutation } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
+
+interface CreateAgentParams {
+  restaurantId: Id<'restaurants'>;
+  restaurantName: string;
+  agentName: string;
+  voiceId: string;
+  voiceName: string;
+  greeting: string;
+  documents: File[];
+}
+
+export function useCreateAgent() {
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const createAgentMutation = useMutation(api.agents.create);
+  const updateDocumentsMutation = useMutation(api.agents.updateDocuments);
+
+  const createAgent = async (params: CreateAgentParams) => {
+    setIsCreating(true);
+    setError(null);
+
+    try {
+      // Step 1: Create agent in ElevenLabs
+      const agentResponse = await fetch('/api/elevenlabs/agents/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantId: params.restaurantId,
+          restaurantName: params.restaurantName,
+          agentName: params.agentName,
+          voiceId: params.voiceId,
+          greeting: params.greeting,
+        }),
+      });
+
+      if (!agentResponse.ok) {
+        throw new Error('Failed to create agent in ElevenLabs');
+      }
+
+      const { agentId: elevenLabsAgentId } = await agentResponse.json();
+
+      // Step 2: Provision phone number via Twilio (optional - may fail if not configured)
+      let phoneNumber = 'Not configured';
+      try {
+        const phoneResponse = await fetch('/api/twilio/provision-number', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: elevenLabsAgentId,
+            areaCode: '415' // Default to San Francisco, can be made configurable
+          }),
+        });
+
+        if (phoneResponse.ok) {
+          const phoneData = await phoneResponse.json();
+          phoneNumber = phoneData.phoneNumber;
+          console.log('Phone number provisioned:', phoneNumber);
+        } else {
+          const error = await phoneResponse.json();
+          console.warn('Phone provisioning failed:', error);
+        }
+      } catch (err) {
+        console.warn('Phone provisioning error:', err);
+        // Continue without phone number - can be added later via dashboard
+      }
+
+      // Step 3: Upload documents to knowledge base and attach to agent
+      const uploadedDocs = [];
+      const knowledgeBaseIds = [];
+
+      for (const file of params.documents) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', file.name);
+
+        const docResponse = await fetch(
+          `/api/elevenlabs/agents/${elevenLabsAgentId}/documents`,
+          {
+            method: 'POST',
+            body: formData,
+          }
+        );
+
+        if (docResponse.ok) {
+          const docData = await docResponse.json();
+          uploadedDocs.push({
+            id: docData.id,
+            name: docData.name,
+            type: getDocumentType(file.name),
+            uploadedAt: Date.now(),
+            size: file.size,
+          });
+          knowledgeBaseIds.push(docData.id);
+        }
+      }
+
+      // Step 4: If documents were uploaded, attach them to the agent
+      if (uploadedDocs.length > 0) {
+        await fetch(`/api/elevenlabs/agents/${elevenLabsAgentId}/update`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            knowledge_base_documents: uploadedDocs.map(doc => ({
+              id: doc.id,
+              name: doc.name,
+            })),
+          }),
+        });
+      }
+
+      // Step 4: Save to Convex database
+      const agentId = await createAgentMutation({
+        restaurantId: params.restaurantId,
+        elevenLabsAgentId,
+        elevenLabsVoiceId: params.voiceId,
+        voiceName: params.voiceName,
+        name: params.agentName,
+        greeting: params.greeting,
+        phoneNumber,
+      });
+
+      // Step 5: Update agent webhooks with correct Convex agentId
+      await fetch(`/api/elevenlabs/agents/${elevenLabsAgentId}/update-webhooks`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantId: params.restaurantId,
+          convexAgentId: agentId,
+          restaurantName: params.restaurantName,
+        }),
+      });
+
+      // Step 6: Update documents if any were uploaded
+      if (uploadedDocs.length > 0) {
+        await updateDocumentsMutation({
+          agentId,
+          documents: uploadedDocs,
+        });
+      }
+
+      return { agentId, phoneNumber, success: true };
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to create agent';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return { createAgent, isCreating, error };
+}
+
+function getDocumentType(filename: string): string {
+  const lower = filename.toLowerCase();
+  if (lower.includes('menu')) return 'menu';
+  if (lower.includes('policy') || lower.includes('policies')) return 'policies';
+  if (lower.includes('faq')) return 'faq';
+  return 'general';
+}

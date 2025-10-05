@@ -60,3 +60,37 @@ export const getCurrentUser = query({
       .first();
   },
 });
+
+// Store user - automatically creates user if doesn't exist
+export const store = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Not authenticated');
+    }
+
+    const existing = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+      .first();
+
+    if (existing) {
+      return existing._id;
+    }
+
+    // Create new user
+    const userId = await ctx.db.insert('users', {
+      clerkId: identity.subject,
+      email: identity.email ?? '',
+      name: identity.name ?? identity.email ?? 'User',
+      role: 'owner',
+      subscriptionTier: 'free',
+      subscriptionStatus: 'active',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return userId;
+  },
+});

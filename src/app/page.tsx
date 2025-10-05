@@ -25,9 +25,9 @@ export default function LandingPage() {
           <h1 className="mb-6 text-5xl font-bold tracking-tight">
             AI-Powered Phone Agents
             <br />
-            <span className="text-primary">For Your Restaurant</span>
+            <span className="text-primary/90">For Your Restaurant</span>
           </h1>
-          <p className="mx-auto mb-8 max-w-2xl text-xl text-muted-foreground">
+          <p className="mx-auto mb-8 max-w-2xl text-xl text-muted-foreground/80">
             Handle reservations 24/7 with intelligent AI agents. No missed calls,
             no busy signals, just seamless customer service.
           </p>

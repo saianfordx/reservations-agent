@@ -55,27 +55,27 @@ export function DashboardContainer() {
         <h3 className="mb-4 text-lg font-semibold">Quick Actions</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <a
-            href="/dashboard/agents/create"
+            href="/dashboard/restaurants/create"
             className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-accent"
           >
-            <div className="text-3xl">➕</div>
+            <div className="text-3xl">🍽️</div>
             <div>
-              <p className="font-medium">Create New Agent</p>
-              <p className="text-sm text-muted-foreground">
-                Set up an AI agent for your restaurant
+              <p className="font-medium">Create Restaurant</p>
+              <p className="text-sm text-muted-foreground/80">
+                Add a new restaurant location
               </p>
             </div>
           </a>
 
           <a
-            href="/dashboard/reservations"
+            href="/dashboard/agents/create"
             className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-accent"
           >
-            <div className="text-3xl">📋</div>
+            <div className="text-3xl">🤖</div>
             <div>
-              <p className="font-medium">View Reservations</p>
-              <p className="text-sm text-muted-foreground">
-                See all your upcoming reservations
+              <p className="font-medium">Create AI Agent</p>
+              <p className="text-sm text-muted-foreground/80">
+                Set up an AI agent for reservations
               </p>
             </div>
           </a>
