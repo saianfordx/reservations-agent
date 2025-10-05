@@ -402,7 +402,7 @@ export const updateRestaurant = mutation({
   },
 });
 
-// Delete a restaurant
+// Delete a restaurant with cascade (deletes agents, reservations, etc.)
 export const deleteRestaurant = mutation({
   args: { id: v.id('restaurants') },
   handler: async (ctx, args) => {
@@ -454,11 +454,30 @@ export const deleteRestaurant = mutation({
       throw new Error('Restaurant has no owner or organization');
     }
 
-    // Archive instead of delete
-    await ctx.db.patch(args.id, {
-      status: 'archived',
-      updatedAt: Date.now(),
-    });
+    // CASCADE DELETE: Delete all related data
+
+    // 1. Delete all agents for this restaurant
+    const agents = await ctx.db
+      .query('agents')
+      .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.id))
+      .collect();
+
+    for (const agent of agents) {
+      await ctx.db.delete(agent._id);
+    }
+
+    // 2. Delete all reservations for this restaurant
+    const reservations = await ctx.db
+      .query('reservations')
+      .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.id))
+      .collect();
+
+    for (const reservation of reservations) {
+      await ctx.db.delete(reservation._id);
+    }
+
+    // 3. Finally, delete the restaurant itself
+    await ctx.db.delete(args.id);
 
     return args.id;
   },

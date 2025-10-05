@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
-import { Button } from '@/shared/components/ui/button';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 
 export default function RestaurantsPage() {
@@ -38,28 +37,20 @@ export default function RestaurantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Restaurants</h1>
-          <p className="text-muted-foreground/80 mt-2">
-            Manage your restaurant locations
-          </p>
-        </div>
-        <Link href="/dashboard/restaurants/create">
-          <Button size="lg">Create Restaurant</Button>
-        </Link>
+      <div>
+        <h1 className="text-3xl font-bold text-black">Businesses</h1>
+        <p className="text-muted-foreground mt-2">
+          Manage your business locations
+        </p>
       </div>
 
       {!restaurants || restaurants.length === 0 ? (
-        <div className="rounded-lg border bg-card p-12 text-center">
+        <div className="rounded-xl bg-card p-12 text-center shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
           <div className="text-4xl mb-4">🍽️</div>
-          <h3 className="text-xl font-semibold mb-2">No restaurants yet</h3>
-          <p className="text-muted-foreground/80 mb-6">
-            Create your first restaurant to start managing reservations
+          <h3 className="text-xl font-semibold mb-2 text-black">No businesses yet</h3>
+          <p className="text-muted-foreground">
+            Create your first business using the Add button in the left sidebar
           </p>
-          <Link href="/dashboard/restaurants/create">
-            <Button size="lg">Create Your First Restaurant</Button>
-          </Link>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -68,40 +59,40 @@ export default function RestaurantsPage() {
               key={restaurant._id}
               href={`/dashboard/restaurants/${restaurant._id}`}
             >
-              <div className="rounded-lg border bg-card p-6 transition-colors hover:bg-accent">
-                <h3 className="text-lg font-semibold mb-2">
+              <div className="rounded-xl bg-card p-6 transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+                <h3 className="text-lg font-semibold mb-2 text-black">
                   {restaurant.name}
                 </h3>
                 {restaurant.description && (
-                  <p className="text-sm text-muted-foreground/80 mb-4 line-clamp-2">
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                     {restaurant.description}
                   </p>
                 )}
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground/80">📍</span>
-                    <span>
+                    <span className="text-muted-foreground">📍</span>
+                    <span className="text-black">
                       {restaurant.location.city}, {restaurant.location.state}
                     </span>
                   </div>
                   {restaurant.cuisine && (
                     <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground/80">🍴</span>
-                      <span>{restaurant.cuisine}</span>
+                      <span className="text-muted-foreground">🍴</span>
+                      <span className="text-black">{restaurant.cuisine}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground/80">👥</span>
-                    <span>
+                    <span className="text-muted-foreground">👥</span>
+                    <span className="text-black">
                       Seats {restaurant.settings.seatingCapacity} people
                     </span>
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t">
+                <div className="mt-4 pt-4">
                   <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
                       restaurant.status === 'active'
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-primary/20 text-primary'
                         : 'bg-muted text-muted-foreground'
                     }`}
                   >

@@ -29,18 +29,18 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
   };
 
   return (
-    <div className="rounded-lg border bg-card p-6">
+    <div className="rounded-xl bg-card p-6 transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold">{agent.name}</h3>
-          <p className="text-sm text-muted-foreground/80 mt-1">
+          <h3 className="text-lg font-semibold text-black">{agent.name}</h3>
+          <p className="text-sm text-muted-foreground mt-1">
             Voice: {agent.voiceName}
           </p>
         </div>
         <span
-          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
             agent.status === 'active'
-              ? 'bg-primary/10 text-primary'
+              ? 'bg-primary/20 text-primary'
               : 'bg-muted text-muted-foreground'
           }`}
         >
@@ -50,10 +50,10 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
 
       <div className="space-y-3">
         {/* Phone Number */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
           <div>
-            <div className="text-xs text-muted-foreground/80">Phone Number</div>
-            <div className="font-mono text-sm font-medium mt-1">
+            <div className="text-xs text-muted-foreground">Phone Number</div>
+            <div className="font-mono text-sm font-medium mt-1 text-black">
               {agent.phoneNumber}
             </div>
           </div>
@@ -64,26 +64,26 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
 
         {/* Greeting */}
         <div>
-          <div className="text-xs text-muted-foreground/80">Greeting</div>
-          <p className="text-sm mt-1 line-clamp-2">
+          <div className="text-xs text-muted-foreground">Greeting</div>
+          <p className="text-sm mt-1 line-clamp-2 text-black">
             {agent.agentConfig.greeting}
           </p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+        <div className="grid grid-cols-2 gap-3 pt-3">
           <div>
-            <div className="text-xs text-muted-foreground/80">Total Calls</div>
-            <div className="text-lg font-semibold">{agent.totalCalls}</div>
+            <div className="text-xs text-muted-foreground">Total Calls</div>
+            <div className="text-lg font-semibold text-black">{agent.totalCalls}</div>
           </div>
           <div>
-            <div className="text-xs text-muted-foreground/80">Minutes</div>
-            <div className="text-lg font-semibold">{agent.totalMinutes}</div>
+            <div className="text-xs text-muted-foreground">Minutes</div>
+            <div className="text-lg font-semibold text-black">{agent.totalMinutes}</div>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t flex gap-2">
+      <div className="mt-4 pt-4 flex gap-2">
         <EditAgentDialog agent={agent} onSuccess={onUpdate} />
         <Button variant="outline" size="sm" className="flex-1">
           View Calls
