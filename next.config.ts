@@ -1,10 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // Enable src directory support
-    appDir: true,
-  },
+  // App directory is now stable in Next.js 15
 };
 
 export default nextConfig;
