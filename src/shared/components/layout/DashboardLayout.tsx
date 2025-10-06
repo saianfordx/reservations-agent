@@ -6,15 +6,26 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useOrganizationSync, useOnboardingStatus } from '@/features/organizations/hooks';
+import { useOrganizationSync } from '@/features/organizations/hooks';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
+import { useOnboardingFlow } from '@/features/onboarding/hooks/useOnboardingFlow';
 import { RestaurantWizard } from '@/features/restaurants/components/RestaurantWizard';
 import { useRouter } from 'next/navigation';
-import { useOrganization } from '@clerk/nextjs';
+import { useOrganization, useOrganizationList } from '@clerk/nextjs';
 import { RestaurantFormData } from '@/features/restaurants/types/restaurant.types';
 import { LayoutDashboard, Store, Calendar, BarChart3, ChevronLeft, ChevronRight, Bot, Settings } from 'lucide-react';
 import { CustomOrganizationSwitcher } from './OrganizationSwitcher';
 import { OrganizationOnboarding } from '@/features/organizations/components/OrganizationOnboarding';
+import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -39,9 +50,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
   const { organization, isLoaded: orgLoaded } = useOrganization();
+  const { createOrganization, setActive } = useOrganizationList();
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCreateOrgOpen, setIsCreateOrgOpen] = useState(false);
+  const [newOrgName, setNewOrgName] = useState('');
+  const [orgError, setOrgError] = useState<string | null>(null);
 
   // Redirect to landing page if not authenticated
   useEffect(() => {
@@ -56,31 +71,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // Sync organization with Convex (only if authenticated)
   useOrganizationSync();
 
-  // Check onboarding status
-  const { onboardingStatus, isLoading: onboardingLoading } = useOnboardingStatus();
+  // Check onboarding using the new hook
+  const { currentStep: onboardingStep } = useOnboardingFlow();
 
-  // Redirect to appropriate onboarding step if needed (ONLY FOR ADMINS)
+  // Redirect to onboarding if needed
   useEffect(() => {
-    if (!organization || onboardingLoading || !onboardingStatus) return;
+    // Don't redirect if already on onboarding page
+    if (pathname?.includes('/onboarding')) return;
 
-    // If already in onboarding or completion flow, don't redirect
-    if (pathname?.includes('/onboarding') || pathname?.includes('/agents')) return;
-
-    // Only redirect if onboarding is incomplete AND user is likely an admin
-    // (members shouldn't see onboarding since org is already set up)
-    if (!onboardingStatus.completed) {
-      if (!onboardingStatus.hasRestaurant && restaurants?.length === 0) {
-        // Need to create restaurant (admin flow)
-        console.log('Redirecting to onboarding: restaurant step');
-        router.push('/onboarding/restaurant');
-      } else if (onboardingStatus.hasRestaurant && !onboardingStatus.hasAgent && restaurants && restaurants.length > 0) {
-        // Have restaurant, need to create agent (admin flow)
-        console.log('Redirecting to onboarding: agent step');
-        const firstRestaurant = restaurants[0];
-        router.push(`/dashboard/${firstRestaurant._id}/agents?onboarding=true`);
-      }
+    // If onboarding is not complete, redirect to onboarding
+    if (onboardingStep && onboardingStep !== 'complete') {
+      console.log('Redirecting to onboarding, current step:', onboardingStep);
+      router.push('/onboarding');
     }
-  }, [organization, onboardingStatus, onboardingLoading, pathname, restaurants, router]);
+  }, [onboardingStep, pathname, router]);
 
   const handleCreateBusiness = async (data: RestaurantFormData) => {
     try {
@@ -101,6 +105,36 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
+  const handleCreateOrganization = async () => {
+    if (!newOrgName.trim()) {
+      setOrgError('Please enter an organization name');
+      return;
+    }
+
+    if (!createOrganization || !setActive) {
+      setOrgError('Unable to create organization');
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      setOrgError(null);
+      const newOrg = await createOrganization({ name: newOrgName });
+
+      if (newOrg) {
+        await setActive({ organization: newOrg.id });
+      }
+
+      setNewOrgName('');
+      setIsCreateOrgOpen(false);
+    } catch (error) {
+      console.error('Failed to create organization:', error);
+      setOrgError('Failed to create organization. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   // Show loading state while checking auth and org
   if (!isLoaded || !orgLoaded) {
     return (
@@ -115,22 +149,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return null;
   }
 
-  // Show prompt to create/join organization only if user has no organizations at all
-  if (!organization) {
-    // This will be handled by Clerk's organization selection
+
+  // Render minimal layout for onboarding pages
+  if (pathname?.includes('/onboarding')) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="max-w-md text-center space-y-6 p-8">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold">Select an Organization</h2>
-            <p className="text-muted-foreground">
-              Please select an organization from the switcher above to continue.
-            </p>
-          </div>
-          <div className="pt-4 border-t">
-            <UserButton afterSignOutUrl="/" />
-          </div>
-        </div>
+      <div className="min-h-screen bg-background">
+        {children}
       </div>
     );
   }
@@ -164,7 +188,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               />
             </div>
             <div className="flex items-center gap-2">
-              <CustomOrganizationSwitcher onCreateOrganization={() => setIsWizardOpen(true)} />
+              <CustomOrganizationSwitcher onCreateOrganization={() => setIsCreateOrgOpen(true)} />
             </div>
           </div>
         </header>
@@ -261,7 +285,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   "flex items-center rounded-xl px-4 py-3",
                   isCollapsed && 'justify-center px-2'
                 )}>
-                  <UserButton afterSignOutUrl="/" />
+                  <UserButton />
                 </div>
                 <button
                   onClick={() => setIsCollapsed(!isCollapsed)}
@@ -297,6 +321,61 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           isLoading={isCreating}
         />
       )}
+
+      {/* Create Organization Dialog */}
+      <Dialog open={isCreateOrgOpen} onOpenChange={setIsCreateOrgOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Organization</DialogTitle>
+            <DialogDescription>
+              Create a new organization to manage multiple restaurants and teams.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="orgName">Organization Name</Label>
+              <Input
+                id="orgName"
+                placeholder="e.g., My Restaurant Group"
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                disabled={isCreating}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCreateOrganization();
+                  }
+                }}
+              />
+              {orgError && (
+                <p className="text-sm text-red-500">{orgError}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCreateOrgOpen(false);
+                setNewOrgName('');
+                setOrgError(null);
+              }}
+              disabled={isCreating}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateOrganization}
+              disabled={isCreating || !newOrgName.trim()}
+              className="flex-1"
+            >
+              {isCreating ? 'Creating...' : 'Create Organization'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
