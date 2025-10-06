@@ -27,6 +27,20 @@ export const get = query({
   },
 });
 
+// Get agent by ElevenLabs agent ID
+export const getByElevenLabsAgentId = query({
+  args: { elevenLabsAgentId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error('Not authenticated');
+
+    return await ctx.db
+      .query('agents')
+      .withIndex('by_elevenlabs_agent_id', (q) => q.eq('elevenLabsAgentId', args.elevenLabsAgentId))
+      .first();
+  },
+});
+
 // Create agent record in database
 export const create = mutation({
   args: {

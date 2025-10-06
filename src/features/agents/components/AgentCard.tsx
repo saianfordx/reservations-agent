@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/shared/components/ui/button';
 import { EditAgentDialog } from './EditAgentDialog';
 
@@ -126,9 +127,11 @@ export function AgentCard({ agent, restaurantName, restaurantTimezone, onUpdate 
       <div className="mt-4 pt-4 flex flex-col gap-2">
         <div className="flex gap-2">
           <EditAgentDialog agent={agent} onSuccess={onUpdate} />
-          <Button variant="outline" size="sm" className="flex-1">
-            View Calls
-          </Button>
+          <Link href={`/dashboard/agents/${agent.elevenLabsAgentId}/calls`} className="flex-1">
+            <Button variant="outline" size="sm" className="w-full">
+              View Calls
+            </Button>
+          </Link>
         </div>
 
         <Button
