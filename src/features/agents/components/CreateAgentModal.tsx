@@ -74,6 +74,7 @@ export function CreateAgentModal({
       const result = await createAgent({
         restaurantId,
         restaurantName: restaurant.name,
+        restaurantTimezone: restaurant.location.timezone,
         agentName: agentName || `${restaurant.name} Assistant`,
         voiceId: selectedVoiceId,
         voiceName: selectedVoiceName,

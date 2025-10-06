@@ -402,6 +402,15 @@ export const updateRestaurant = mutation({
   },
 });
 
+// Get restaurant info without auth (for public webhooks)
+export const getRestaurantPublic = query({
+  args: { id: v.id('restaurants') },
+  handler: async (ctx, args) => {
+    const restaurant = await ctx.db.get(args.id);
+    return restaurant;
+  },
+});
+
 // Delete a restaurant with cascade (deletes agents, reservations, etc.)
 export const deleteRestaurant = mutation({
   args: { id: v.id('restaurants') },

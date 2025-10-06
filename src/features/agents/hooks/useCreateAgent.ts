@@ -8,6 +8,7 @@ import { Id } from '../../../../convex/_generated/dataModel';
 interface CreateAgentParams {
   restaurantId: Id<'restaurants'>;
   restaurantName: string;
+  restaurantTimezone: string;
   agentName: string;
   voiceId: string;
   voiceName: string;
@@ -33,6 +34,7 @@ export function useCreateAgent() {
         body: JSON.stringify({
           restaurantId: params.restaurantId,
           restaurantName: params.restaurantName,
+          restaurantTimezone: params.restaurantTimezone,
           agentName: params.agentName,
           voiceId: params.voiceId,
           greeting: params.greeting,
@@ -123,6 +125,7 @@ export function useCreateAgent() {
           restaurantId: params.restaurantId,
           convexAgentId: agentId,
           restaurantName: params.restaurantName,
+          restaurantTimezone: params.restaurantTimezone,
           knowledge_base_documents: uploadedDocs.length > 0
             ? uploadedDocs.map(doc => ({ id: doc.id, name: doc.name }))
             : undefined,

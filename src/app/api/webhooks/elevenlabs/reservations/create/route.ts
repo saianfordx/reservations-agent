@@ -47,8 +47,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create reservation in Convex
+    // Get restaurant to check timezone for date validation
     const convex = getConvexClient();
+    const restaurant = await convex.query(api.restaurants.getRestaurantPublic, {
+      id: restaurantId as Id<'restaurants'>,
+    });
+
+    if (!restaurant) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Restaurant not found.',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Validate that the date is not in the past
+    const timezone = restaurant.location.timezone || 'America/New_York';
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const todayFormatted = `${year}-${month}-${day}`;
+
+    // Compare dates
+    const reservationDate = new Date(date + 'T00:00:00');
+    const todayDate = new Date(todayFormatted + 'T00:00:00');
+
+    if (reservationDate < todayDate) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `I'm sorry, but that date (${date}) is in the past. Please provide a date that is today (${todayFormatted}) or later.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Create reservation in Convex
     const result = await convex.mutation(api.reservations.create, {
       restaurantId: restaurantId as Id<'restaurants'>,
       agentId: agentId as Id<'agents'>,

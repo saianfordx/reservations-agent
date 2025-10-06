@@ -34,10 +34,49 @@ export default function RestaurantReservationsPage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
+  // Get today's date in the restaurant's timezone
+  const getTodayInRestaurantTZ = (): string => {
+    if (!restaurant?.location?.timezone) {
+      // Fallback to local timezone
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Get current date/time in restaurant's timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: restaurant.location.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper function to format date to YYYY-MM-DD
+  const formatDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Calculate date range based on selected period
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    if (!restaurant) return;
+
+    const todayStr = getTodayInRestaurantTZ();
+    const [year, month, day] = todayStr.split('-').map(Number);
+    const today = new Date(year, month - 1, day);
+
     const start = new Date(today);
     const end = new Date(today);
 
@@ -55,13 +94,12 @@ export default function RestaurantReservationsPage() {
         break;
     }
 
-    const todayStr = start.toISOString().split('T')[0];
     setDateRange({
-      startDate: todayStr,
-      endDate: end.toISOString().split('T')[0],
+      startDate: formatDate(start),
+      endDate: formatDate(end),
     });
-    setSelectedDate(todayStr);
-  }, [selectedPeriod]);
+    setSelectedDate(formatDate(start));
+  }, [selectedPeriod, restaurant]);
 
   // Show loading while checking auth
   if (!isLoaded || !isSignedIn) {
@@ -163,12 +201,13 @@ export default function RestaurantReservationsPage() {
         // Today view: Just show the list for today
         <div className="space-y-6">
           {(() => {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const dateObj = new Date(todayStr);
-            const dayOfWeek = dateObj.toLocaleDateString('en-US', {
+            const todayStr = getTodayInRestaurantTZ();
+            const [year, month, day] = todayStr.split('-').map(Number);
+            const today = new Date(year, month - 1, day);
+            const dayOfWeek = today.toLocaleDateString('en-US', {
               weekday: 'long',
             });
-            const formattedDate = dateObj.toLocaleDateString('en-US', {
+            const formattedDate = today.toLocaleDateString('en-US', {
               month: 'long',
               day: 'numeric',
               year: 'numeric',
@@ -346,19 +385,19 @@ export default function RestaurantReservationsPage() {
                     }
 
                     // Actual days
+                    const todayStr = getTodayInRestaurantTZ();
                     for (let day = 1; day <= lastDay.getDate(); day++) {
                       const dateObj = new Date(
                         start.getFullYear(),
                         start.getMonth(),
                         day
                       );
-                      const dateStr = dateObj.toISOString().split('T')[0];
+                      const dateStr = formatDate(dateObj);
                       const isInRange =
                         dateStr >= dateRange.startDate &&
                         dateStr <= dateRange.endDate;
                       const isSelected = dateStr === selectedDate;
-                      const isToday =
-                        dateStr === new Date().toISOString().split('T')[0];
+                      const isToday = dateStr === todayStr;
                       const hasReservations =
                         groupedReservations[dateStr]?.length > 0;
 
@@ -399,10 +438,11 @@ export default function RestaurantReservationsPage() {
           {/* Reservations Panel - Right Side */}
           <div className="flex-1 min-w-0">
             {(() => {
-              const dateObj = new Date(selectedDate);
-              const isToday =
-                dateObj.toISOString().split('T')[0] ===
-                new Date().toISOString().split('T')[0];
+              // Parse selected date string (YYYY-MM-DD) to get correct date
+              const [year, month, day] = selectedDate.split('-').map(Number);
+              const dateObj = new Date(year, month - 1, day);
+              const todayStr = getTodayInRestaurantTZ();
+              const isToday = selectedDate === todayStr;
               const dayOfWeek = dateObj.toLocaleDateString('en-US', {
                 weekday: 'long',
               });

@@ -86,7 +86,12 @@ export default function RestaurantAgentsPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent) => (
-            <AgentCard key={agent._id} agent={agent} restaurantName={restaurant.name} />
+            <AgentCard
+              key={agent._id}
+              agent={agent}
+              restaurantName={restaurant.name}
+              restaurantTimezone={restaurant.location.timezone}
+            />
           ))}
         </div>
       )}

@@ -23,10 +23,11 @@ interface Agent {
 interface AgentCardProps {
   agent: Agent;
   restaurantName: string;
+  restaurantTimezone: string;
   onUpdate?: () => void;
 }
 
-export function AgentCard({ agent, restaurantName, onUpdate }: AgentCardProps) {
+export function AgentCard({ agent, restaurantName, restaurantTimezone, onUpdate }: AgentCardProps) {
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairSuccess, setRepairSuccess] = useState(false);
 
@@ -46,6 +47,7 @@ export function AgentCard({ agent, restaurantName, onUpdate }: AgentCardProps) {
           restaurantId: agent.restaurantId,
           convexAgentId: agent._id,
           restaurantName: restaurantName,
+          restaurantTimezone: restaurantTimezone,
         }),
       });
 
