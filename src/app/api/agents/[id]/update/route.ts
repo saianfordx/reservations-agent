@@ -38,11 +38,11 @@ export async function PATCH(
         tts: {},
       };
 
-      if (greeting !== undefined) {
+      if (greeting !== undefined && elevenLabsPayload.conversation_config.agent) {
         elevenLabsPayload.conversation_config.agent.first_message = greeting;
       }
 
-      if (voiceId !== undefined) {
+      if (voiceId !== undefined && elevenLabsPayload.conversation_config.tts) {
         elevenLabsPayload.conversation_config.tts.voice_id = voiceId;
       }
     }
