@@ -8,15 +8,16 @@ const VoiceResponse = twilio.twiml.VoiceResponse;
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const { agentId } = await params;
     const formData = await req.formData();
     const from = formData.get('From') as string;
     const to = formData.get('To') as string;
     const callSid = formData.get('CallSid') as string;
 
-    console.log('Incoming call:', { from, to, callSid, agentId: params.agentId });
+    console.log('Incoming call:', { from, to, callSid, agentId });
 
     // Get agent details from database to get ElevenLabs agent ID
     // For now, we'll use a direct websocket connection approach
@@ -26,7 +27,7 @@ export async function POST(
     // Connect to ElevenLabs via WebSocket
     const connect = twiml.connect();
     const stream = connect.stream({
-      url: `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${params.agentId}`,
+      url: `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`,
     });
 
     // Pass ElevenLabs API key as parameter
@@ -36,7 +37,7 @@ export async function POST(
     });
 
     // Log the call
-    console.log('Connecting call to ElevenLabs agent:', params.agentId);
+    console.log('Connecting call to ElevenLabs agent:', agentId);
 
     return new NextResponse(twiml.toString(), {
       headers: {
