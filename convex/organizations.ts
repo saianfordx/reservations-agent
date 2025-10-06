@@ -55,6 +55,12 @@ export const syncOrganization = mutation({
       createdBy: user._id,
       subscriptionTier: 'free',
       subscriptionStatus: 'active',
+      onboardingStatus: {
+        completed: false,
+        currentStep: 'restaurant',
+        hasRestaurant: false,
+        hasAgent: false,
+      },
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -492,5 +498,103 @@ export const hasAllPermissions = query({
     return args.permissions.every((permission) =>
       membership.permissions.includes(permission)
     );
+  },
+});
+
+// ============================================
+// ONBOARDING STATUS
+// ============================================
+
+/**
+ * Get onboarding status for organization
+ */
+export const getOnboardingStatus = query({
+  args: {
+    clerkOrganizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const org = await ctx.db
+      .query('organizations')
+      .withIndex('by_clerk_organization_id', (q) =>
+        q.eq('clerkOrganizationId', args.clerkOrganizationId)
+      )
+      .first();
+
+    if (!org) {
+      return null;
+    }
+
+    // Check if organization has restaurant
+    const restaurants = await ctx.db
+      .query('restaurants')
+      .withIndex('by_organization', (q) => q.eq('organizationId', org._id))
+      .first();
+
+    const hasRestaurant = !!restaurants;
+    let hasAgent = false;
+
+    // Check if organization has agent
+    if (hasRestaurant) {
+      const agents = await ctx.db
+        .query('agents')
+        .withIndex('by_restaurant', (q) => q.eq('restaurantId', restaurants._id))
+        .first();
+      hasAgent = !!agents;
+    }
+
+    // Return current onboarding status
+    return {
+      completed: org.onboardingStatus?.completed ?? (hasRestaurant && hasAgent),
+      currentStep: org.onboardingStatus?.currentStep ?? (!hasRestaurant ? 'restaurant' : !hasAgent ? 'agent' : 'completed'),
+      hasRestaurant,
+      hasAgent,
+      completedAt: org.onboardingStatus?.completedAt,
+    };
+  },
+});
+
+/**
+ * Update onboarding status
+ */
+export const updateOnboardingStatus = mutation({
+  args: {
+    clerkOrganizationId: v.string(),
+    completed: v.optional(v.boolean()),
+    currentStep: v.optional(v.string()),
+    hasRestaurant: v.optional(v.boolean()),
+    hasAgent: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const org = await ctx.db
+      .query('organizations')
+      .withIndex('by_clerk_organization_id', (q) =>
+        q.eq('clerkOrganizationId', args.clerkOrganizationId)
+      )
+      .first();
+
+    if (!org) {
+      throw new Error('Organization not found');
+    }
+
+    const currentStatus = org.onboardingStatus || {
+      completed: false,
+      hasRestaurant: false,
+      hasAgent: false,
+    };
+
+    const newStatus = {
+      completed: args.completed ?? currentStatus.completed,
+      currentStep: args.currentStep ?? currentStatus.currentStep,
+      hasRestaurant: args.hasRestaurant ?? currentStatus.hasRestaurant,
+      hasAgent: args.hasAgent ?? currentStatus.hasAgent,
+      completedAt: args.completed ? Date.now() : currentStatus.completedAt,
+    };
+
+    await ctx.db.patch(org._id, {
+      onboardingStatus: newStatus,
+      updatedAt: Date.now(),
+    });
+
+    return newStatus;
   },
 });

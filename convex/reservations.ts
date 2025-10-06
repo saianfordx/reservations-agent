@@ -282,3 +282,170 @@ export const getByReservationId = query({
       .first();
   },
 });
+
+/**
+ * Create a new reservation manually (from dashboard)
+ */
+export const createManual = mutation({
+  args: {
+    restaurantId: v.id('restaurants'),
+    customerName: v.string(),
+    date: v.string(),
+    time: v.string(),
+    partySize: v.number(),
+    customerPhone: v.optional(v.string()),
+    specialRequests: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get user identity
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Unauthorized');
+    }
+
+    // Generate unique reservation ID
+    const reservationId = await generateReservationId(ctx, args.restaurantId);
+
+    const now = Date.now();
+
+    // Create reservation
+    const id = await ctx.db.insert('reservations', {
+      restaurantId: args.restaurantId,
+      reservationId,
+      customerName: args.customerName,
+      customerPhone: args.customerPhone,
+      date: args.date,
+      time: args.time,
+      partySize: args.partySize,
+      specialRequests: args.specialRequests,
+      status: 'confirmed',
+      source: 'manual',
+      history: [
+        {
+          action: 'created',
+          timestamp: now,
+          modifiedBy: identity.email || 'manual',
+        },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      id,
+      reservationId,
+    };
+  },
+});
+
+/**
+ * Update an existing reservation manually (from dashboard)
+ */
+export const updateManual = mutation({
+  args: {
+    id: v.id('reservations'),
+    customerName: v.optional(v.string()),
+    date: v.optional(v.string()),
+    time: v.optional(v.string()),
+    partySize: v.optional(v.number()),
+    customerPhone: v.optional(v.string()),
+    specialRequests: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get user identity
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Unauthorized');
+    }
+
+    // Find reservation
+    const reservation = await ctx.db.get(args.id);
+
+    if (!reservation) {
+      throw new Error('Reservation not found');
+    }
+
+    if (reservation.status === 'cancelled') {
+      throw new Error('Cannot modify a cancelled reservation');
+    }
+
+    const now = Date.now();
+    const changes: Record<string, any> = {};
+
+    // Build update object and track changes
+    const updates: any = {
+      updatedAt: now,
+    };
+
+    if (args.customerName !== undefined) {
+      changes.customerName = { from: reservation.customerName, to: args.customerName };
+      updates.customerName = args.customerName;
+    }
+
+    if (args.date !== undefined) {
+      changes.date = { from: reservation.date, to: args.date };
+      updates.date = args.date;
+    }
+
+    if (args.time !== undefined) {
+      changes.time = { from: reservation.time, to: args.time };
+      updates.time = args.time;
+    }
+
+    if (args.partySize !== undefined) {
+      changes.partySize = { from: reservation.partySize, to: args.partySize };
+      updates.partySize = args.partySize;
+    }
+
+    if (args.customerPhone !== undefined) {
+      changes.customerPhone = { from: reservation.customerPhone, to: args.customerPhone };
+      updates.customerPhone = args.customerPhone;
+    }
+
+    if (args.specialRequests !== undefined) {
+      changes.specialRequests = { from: reservation.specialRequests, to: args.specialRequests };
+      updates.specialRequests = args.specialRequests;
+    }
+
+    // Update history
+    updates.history = [
+      ...reservation.history,
+      {
+        action: 'updated',
+        timestamp: now,
+        changes,
+        modifiedBy: identity.email || 'manual',
+      },
+    ];
+
+    await ctx.db.patch(reservation._id, updates);
+
+    return {
+      success: true,
+      reservationId: reservation.reservationId,
+    };
+  },
+});
+
+/**
+ * Delete a reservation permanently (from dashboard)
+ */
+export const deleteReservation = mutation({
+  args: {
+    id: v.id('reservations'),
+  },
+  handler: async (ctx, args) => {
+    // Get user identity
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Unauthorized');
+    }
+
+    // Delete the reservation
+    await ctx.db.delete(args.id);
+
+    return {
+      success: true,
+    };
+  },
+});

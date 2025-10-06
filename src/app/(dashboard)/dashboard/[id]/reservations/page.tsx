@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
 import { useReservations } from '@/features/reservations/hooks/useReservations';
+import { CreateReservationDialog } from '@/features/reservations/components/CreateReservationDialog';
+import { EditReservationDialog } from '@/features/reservations/components/EditReservationDialog';
+import { DeleteReservationDialog } from '@/features/reservations/components/DeleteReservationDialog';
 import { Id } from '../../../../../../convex/_generated/dataModel';
 
 export default function RestaurantReservationsPage() {
@@ -59,11 +62,14 @@ export default function RestaurantReservationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-black">Reservations</h1>
-        <p className="text-muted-foreground mt-2">
-          View all reservations for {restaurant.name}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-black">Reservations</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage all reservations for {restaurant.name}
+          </p>
+        </div>
+        <CreateReservationDialog restaurantId={restaurantId} />
       </div>
 
       {/* Reservations List */}
@@ -75,9 +81,10 @@ export default function RestaurantReservationsPage() {
         <div className="rounded-xl bg-card p-12 text-center shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
           <div className="text-4xl mb-4">📅</div>
           <h3 className="text-xl font-semibold mb-2 text-black">No reservations</h3>
-          <p className="text-muted-foreground">
-            No reservations found for this business
+          <p className="text-muted-foreground mb-4">
+            No reservations found for this restaurant
           </p>
+          <CreateReservationDialog restaurantId={restaurantId} />
         </div>
       ) : (
         <div className="space-y-4">
@@ -93,7 +100,7 @@ export default function RestaurantReservationsPage() {
                 key={reservation._id}
                 className="rounded-xl bg-card p-5 shadow-[0_2px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
@@ -134,21 +141,27 @@ export default function RestaurantReservationsPage() {
                     )}
                   </div>
 
-                  <div className="flex flex-col items-end gap-2">
-                    <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
-                        reservation.status === 'confirmed'
-                          ? 'bg-primary/20 text-primary'
-                          : reservation.status === 'cancelled'
-                          ? 'bg-destructive/20 text-destructive'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {reservation.status}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      ID: {reservation.reservationId}
-                    </span>
+                  <div className="flex flex-col items-end gap-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
+                          reservation.status === 'confirmed'
+                            ? 'bg-primary/20 text-primary'
+                            : reservation.status === 'cancelled'
+                            ? 'bg-destructive/20 text-destructive'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {reservation.status}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        ID: {reservation.reservationId}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <EditReservationDialog reservation={reservation} />
+                      <DeleteReservationDialog reservation={reservation} />
+                    </div>
                   </div>
                 </div>
               </div>

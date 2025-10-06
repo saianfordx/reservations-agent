@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
 import { useAgents } from '@/features/agents/hooks/useAgents';
@@ -14,10 +14,12 @@ export default function RestaurantAgentsPage() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const isOnboarding = searchParams.get('onboarding') === 'true';
   const restaurantId = params.id as Id<'restaurants'>;
   const { restaurant, isLoading } = useRestaurant(restaurantId);
   const { agents, isLoading: agentsLoading } = useAgents(restaurantId);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(isOnboarding);
 
   // Auth guard - redirect to sign in if not authenticated
   useEffect(() => {
@@ -94,6 +96,7 @@ export default function RestaurantAgentsPage() {
         restaurantId={restaurantId}
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
+        isOnboarding={isOnboarding}
       />
     </div>
   );

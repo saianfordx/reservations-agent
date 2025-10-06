@@ -20,7 +20,13 @@ export async function PATCH(
     }
 
     // Update ElevenLabs agent (only safe fields)
-    const elevenLabsPayload: any = {};
+    const elevenLabsPayload: {
+      name?: string;
+      conversation_config?: {
+        agent?: { first_message?: string };
+        tts?: { voice_id?: string };
+      };
+    } = {};
 
     if (name !== undefined) {
       elevenLabsPayload.name = name;

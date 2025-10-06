@@ -33,6 +33,14 @@ export default defineSchema({
     createdBy: v.id('users'),
     subscriptionTier: v.string(), // free, pro, enterprise
     subscriptionStatus: v.string(), // active, cancelled, past_due
+    // Onboarding tracking
+    onboardingStatus: v.optional(v.object({
+      completed: v.boolean(),
+      currentStep: v.optional(v.string()), // 'organization' | 'restaurant' | 'agent'
+      hasRestaurant: v.boolean(),
+      hasAgent: v.boolean(),
+      completedAt: v.optional(v.number()),
+    })),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -198,7 +206,7 @@ export default defineSchema({
 
   reservations: defineTable({
     restaurantId: v.id('restaurants'),
-    agentId: v.id('agents'),
+    agentId: v.optional(v.id('agents')), // Optional for manual reservations
 
     // Reservation ID (4-digit, unique per restaurant)
     reservationId: v.string(),

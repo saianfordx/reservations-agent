@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useOrganization, useUser } from '@clerk/nextjs';
+import { useOrganization, useUser, useAuth } from '@clerk/nextjs';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 
@@ -8,6 +8,7 @@ import { api } from '../../../../convex/_generated/api';
  * Call this in a top-level component (like layout) to ensure sync
  */
 export function useOrganizationSync() {
+  const { isSignedIn } = useAuth();
   const { organization } = useOrganization();
   const { user } = useUser();
   const syncOrganization = useMutation(api.organizations.syncOrganization);
@@ -15,8 +16,8 @@ export function useOrganizationSync() {
 
   useEffect(() => {
     async function sync() {
-      // Only sync if user is in an organization (not personal account)
-      if (!organization || !user) return;
+      // Only sync if user is authenticated and in an organization (not personal account)
+      if (!isSignedIn || !organization || !user) return;
 
       try {
         // Sync organization
@@ -52,5 +53,5 @@ export function useOrganizationSync() {
     }
 
     sync();
-  }, [organization, user, syncOrganization, syncMembership]);
+  }, [isSignedIn, organization, user, syncOrganization, syncMembership]);
 }

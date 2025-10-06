@@ -1,17 +1,18 @@
 'use client';
 
 import { useQuery, useMutation } from 'convex/react';
-import { useOrganization } from '@clerk/nextjs';
+import { useOrganization, useAuth } from '@clerk/nextjs';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { RestaurantFormData } from '../types/restaurant.types';
 
 export function useRestaurants() {
+  const { isSignedIn } = useAuth();
   const { organization } = useOrganization();
 
   const restaurants = useQuery(
     api.restaurants.getMyRestaurants,
-    organization ? { clerkOrganizationId: organization.id } : {}
+    isSignedIn && organization ? { clerkOrganizationId: organization.id } : 'skip'
   );
   const createMutation = useMutation(api.restaurants.createRestaurant);
   const updateMutation = useMutation(api.restaurants.updateRestaurant);

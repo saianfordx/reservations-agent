@@ -127,7 +127,7 @@ export default function LandingPage() {
                 Why Restaurant Owners Love Us
               </h2>
               <p className="text-[20px] text-gray-600 leading-[1.6]">
-                Powerful features that are incredibly easy to use. Customize every detail to match your restaurant's unique needs.
+                Powerful features that are incredibly easy to use. Customize every detail to match your restaurant&apos;s unique needs.
               </p>
             </div>
 
@@ -188,7 +188,7 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-8">
             <div className="max-w-3xl mx-auto text-center mb-20">
               <h2 className="mb-6 text-[48px] md:text-[56px] font-black tracking-[-0.03em] leading-[1.1] text-gray-900">
-                So Easy, You'll Be Live in 5 Minutes
+                So Easy, You&apos;ll Be Live in 5 Minutes
               </h2>
               <p className="text-[20px] text-gray-600 leading-[1.6]">
                 No complicated setup. No technical headaches. Just four simple steps and your AI agent is ready to take calls.

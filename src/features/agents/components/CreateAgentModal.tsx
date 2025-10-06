@@ -15,11 +15,16 @@ import { VoiceSelector } from './VoiceSelector';
 import { useCreateAgent } from '../hooks/useCreateAgent';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
 import { Id } from '../../../../convex/_generated/dataModel';
+import { useRouter } from 'next/navigation';
+import { useMutation } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { useOrganization } from '@clerk/nextjs';
 
 interface CreateAgentModalProps {
   restaurantId: Id<'restaurants'>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isOnboarding?: boolean;
 }
 
 type Step = 'config' | 'voice' | 'documents' | 'review';
@@ -28,9 +33,13 @@ export function CreateAgentModal({
   restaurantId,
   open,
   onOpenChange,
+  isOnboarding = false,
 }: CreateAgentModalProps) {
+  const router = useRouter();
+  const { organization } = useOrganization();
   const { restaurant } = useRestaurant(restaurantId);
   const { createAgent, isCreating, error } = useCreateAgent();
+  const updateOnboarding = useMutation(api.organizations.updateOnboardingStatus);
 
   const [step, setStep] = useState<Step>('config');
   const [agentName, setAgentName] = useState('');
@@ -73,6 +82,18 @@ export function CreateAgentModal({
       });
 
       console.log('Agent created successfully:', result);
+
+      // If onboarding, mark as complete and redirect
+      if (isOnboarding && result?.agent?._id && organization?.id) {
+        await updateOnboarding({
+          clerkOrganizationId: organization.id,
+          hasAgent: true,
+          completed: true,
+        });
+
+        router.push(`/onboarding/complete?agentId=${result.agent._id}&restaurantId=${restaurantId}`);
+        return;
+      }
 
       // Reset form
       setStep('config');

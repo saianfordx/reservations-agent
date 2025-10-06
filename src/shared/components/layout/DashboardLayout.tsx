@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { UserButton } from '@clerk/nextjs';
+import { useState, useEffect } from 'react';
+import { UserButton, useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useOrganizationSync } from '@/features/organizations/hooks';
+import { useOrganizationSync, useOnboardingStatus } from '@/features/organizations/hooks';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 import { RestaurantWizard } from '@/features/restaurants/components/RestaurantWizard';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { useOrganization } from '@clerk/nextjs';
 import { RestaurantFormData } from '@/features/restaurants/types/restaurant.types';
 import { LayoutDashboard, Store, Calendar, BarChart3, ChevronLeft, ChevronRight, Bot, Settings } from 'lucide-react';
 import { CustomOrganizationSwitcher } from './OrganizationSwitcher';
+import { OrganizationOnboarding } from '@/features/organizations/components/OrganizationOnboarding';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -36,15 +37,50 @@ const getRestaurantNavigation = (restaurantId: string) => [
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { organization } = useOrganization();
-  const { restaurants } = useRestaurants();
-  const { createRestaurant } = useRestaurants();
+  const { isSignedIn, isLoaded } = useAuth();
+  const { organization, isLoaded: orgLoaded } = useOrganization();
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Sync organization with Convex
+  // Redirect to landing page if not authenticated
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push('/');
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  // Only fetch restaurants if authenticated
+  const { restaurants, createRestaurant } = useRestaurants();
+
+  // Sync organization with Convex (only if authenticated)
   useOrganizationSync();
+
+  // Check onboarding status
+  const { onboardingStatus, isLoading: onboardingLoading } = useOnboardingStatus();
+
+  // Redirect to appropriate onboarding step if needed (ONLY FOR ADMINS)
+  useEffect(() => {
+    if (!organization || onboardingLoading || !onboardingStatus) return;
+
+    // If already in onboarding or completion flow, don't redirect
+    if (pathname?.includes('/onboarding') || pathname?.includes('/agents')) return;
+
+    // Only redirect if onboarding is incomplete AND user is likely an admin
+    // (members shouldn't see onboarding since org is already set up)
+    if (!onboardingStatus.completed) {
+      if (!onboardingStatus.hasRestaurant && restaurants?.length === 0) {
+        // Need to create restaurant (admin flow)
+        console.log('Redirecting to onboarding: restaurant step');
+        router.push('/onboarding/restaurant');
+      } else if (onboardingStatus.hasRestaurant && !onboardingStatus.hasAgent && restaurants && restaurants.length > 0) {
+        // Have restaurant, need to create agent (admin flow)
+        console.log('Redirecting to onboarding: agent step');
+        const firstRestaurant = restaurants[0];
+        router.push(`/dashboard/${firstRestaurant._id}/agents?onboarding=true`);
+      }
+    }
+  }, [organization, onboardingStatus, onboardingLoading, pathname, restaurants, router]);
 
   const handleCreateBusiness = async (data: RestaurantFormData) => {
     try {
@@ -64,6 +100,40 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       setIsCreating(false);
     }
   };
+
+  // Show loading state while checking auth and org
+  if (!isLoaded || !orgLoaded) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not signed in (will redirect)
+  if (!isSignedIn) {
+    return null;
+  }
+
+  // Show prompt to create/join organization only if user has no organizations at all
+  if (!organization) {
+    // This will be handled by Clerk's organization selection
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="max-w-md text-center space-y-6 p-8">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Select an Organization</h2>
+            <p className="text-muted-foreground">
+              Please select an organization from the switcher above to continue.
+            </p>
+          </div>
+          <div className="pt-4 border-t">
+            <UserButton afterSignOutUrl="/" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Check if we're on a restaurant-specific page
   const restaurantIdMatch = pathname?.match(/^\/dashboard\/([a-z0-9]+)(?:\/|$)/);
@@ -191,7 +261,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   "flex items-center rounded-xl px-4 py-3",
                   isCollapsed && 'justify-center px-2'
                 )}>
-                  <UserButton />
+                  <UserButton afterSignOutUrl="/" />
                 </div>
                 <button
                   onClick={() => setIsCollapsed(!isCollapsed)}

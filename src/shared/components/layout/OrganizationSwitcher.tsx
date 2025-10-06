@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useOrganizationList, useOrganization, useUser } from '@clerk/nextjs';
-import { ChevronDown, Settings, Plus } from 'lucide-react';
+import { useOrganizationList, useOrganization, useUser, OrganizationProfile } from '@clerk/nextjs';
+import { ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CustomOrganizationSwitcherProps {
@@ -12,6 +12,7 @@ interface CustomOrganizationSwitcherProps {
 
 export function CustomOrganizationSwitcher({ onCreateOrganization, isCollapsed = false }: CustomOrganizationSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showManageOrg, setShowManageOrg] = useState(false);
   const { organization } = useOrganization();
   const { user } = useUser();
   const {
@@ -50,29 +51,14 @@ export function CustomOrganizationSwitcher({ onCreateOrganization, isCollapsed =
           "flex items-center gap-2 text-white hover:bg-white/10 rounded-lg transition-colors w-full",
           isCollapsed ? "px-2 py-2 justify-center" : "px-3 py-2"
         )}
-        title={isCollapsed ? (currentOrg?.name || 'Personal account') : undefined}
+        title={isCollapsed ? currentOrg?.name : undefined}
       >
-        {currentOrg ? (
-          <>
-            <div className="w-6 h-6 rounded bg-primary/30 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-bold text-white">
-                {currentOrg.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            {!isCollapsed && <span className="text-sm font-medium truncate">{currentOrg.name}</span>}
-          </>
-        ) : (
-          <>
-            <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-              <img
-                src={user?.imageUrl}
-                alt={user?.fullName || 'User'}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            {!isCollapsed && <span className="text-sm font-medium truncate">Personal account</span>}
-          </>
-        )}
+        <div className="w-6 h-6 rounded bg-primary/30 flex items-center justify-center flex-shrink-0">
+          <span className="text-xs font-bold text-white">
+            {currentOrg?.name.charAt(0).toUpperCase()}
+          </span>
+        </div>
+        {!isCollapsed && <span className="text-sm font-medium truncate">{currentOrg?.name}</span>}
         {!isCollapsed && (
           <ChevronDown className={cn(
             "w-4 h-4 transition-transform flex-shrink-0",
@@ -103,31 +89,20 @@ export function CustomOrganizationSwitcher({ onCreateOrganization, isCollapsed =
                       <div className="text-xs text-gray-500">Admin</div>
                     </div>
                   </div>
-                  <button className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsOpen(false);
+                      setShowManageOrg(true);
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  >
                     <Settings className="w-4 h-4" />
                     Manage
                   </button>
                 </div>
               </div>
             )}
-
-            {/* Personal Account */}
-            <button
-              onClick={() => handleOrganizationSwitch(null)}
-              className={cn(
-                "w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left",
-                !currentOrg && "bg-gray-50"
-              )}
-            >
-              <div className="w-10 h-10 rounded-full overflow-hidden">
-                <img
-                  src={user?.imageUrl}
-                  alt={user?.fullName || 'User'}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="text-sm font-medium text-gray-900">Personal account</span>
-            </button>
 
             {/* Other Organizations */}
             {otherOrgs.length > 0 && (
@@ -151,22 +126,6 @@ export function CustomOrganizationSwitcher({ onCreateOrganization, isCollapsed =
               </div>
             )}
 
-            {/* Create Organization */}
-            <div className="border-t border-gray-200">
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  onCreateOrganization?.();
-                }}
-                className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left"
-              >
-                <div className="w-10 h-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
-                  <Plus className="w-5 h-5 text-gray-400" />
-                </div>
-                <span className="text-sm font-medium text-gray-900">Create organization</span>
-              </button>
-            </div>
-
             {/* Footer */}
             <div className="border-t border-gray-200 p-4 bg-gray-50">
               <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
@@ -179,6 +138,22 @@ export function CustomOrganizationSwitcher({ onCreateOrganization, isCollapsed =
             </div>
           </div>
         </>
+      )}
+
+      {/* Manage Organization Modal */}
+      {showManageOrg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowManageOrg(false)}>
+          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <OrganizationProfile
+              appearance={{
+                elements: {
+                  rootBox: "w-full",
+                  card: "shadow-none w-full",
+                }
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
