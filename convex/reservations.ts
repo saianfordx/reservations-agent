@@ -449,3 +449,58 @@ export const deleteReservation = mutation({
     };
   },
 });
+
+/**
+ * Search for reservations by name, date, and/or phone (for agent use)
+ */
+export const searchReservations = query({
+  args: {
+    restaurantId: v.id('restaurants'),
+    customerName: v.optional(v.string()),
+    date: v.optional(v.string()),
+    customerPhone: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get all reservations for the restaurant
+    const allReservations = await ctx.db
+      .query('reservations')
+      .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
+      .collect();
+
+    // Filter based on search criteria
+    let results = allReservations;
+
+    // Filter by customer name (case-insensitive partial match)
+    if (args.customerName) {
+      const searchName = args.customerName.toLowerCase().trim();
+      results = results.filter((r) =>
+        r.customerName.toLowerCase().includes(searchName)
+      );
+    }
+
+    // Filter by date (exact match)
+    if (args.date) {
+      results = results.filter((r) => r.date === args.date);
+    }
+
+    // Filter by phone (partial match)
+    if (args.customerPhone) {
+      const searchPhone = args.customerPhone.replace(/\D/g, ''); // Remove non-digits
+      results = results.filter((r) => {
+        if (!r.customerPhone) return false;
+        const normalizedPhone = r.customerPhone.replace(/\D/g, '');
+        return normalizedPhone.includes(searchPhone);
+      });
+    }
+
+    // Sort by date and time (most recent first)
+    results.sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return b.time.localeCompare(a.time);
+    });
+
+    // Limit to 10 results to avoid overwhelming the agent
+    return results.slice(0, 10);
+  },
+});

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { TrendingUp, TrendingDown, Calendar, Phone, Users, Clock } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Id } from '../../../../../convex/_generated/dataModel';
+import { getTodayInTimezone, getDateWithOffset, getDateWithMonthOffset } from '@/lib/utils/date';
 
 type TimeRange = 'today' | '7days' | '30days' | '3months';
 
@@ -22,29 +23,36 @@ export default function RestaurantDashboardPage() {
 
   // Calculate date ranges based on selected time range
   const { startDate, endDate } = useMemo(() => {
-    const end = new Date();
-    const start = new Date();
+    if (!restaurant) {
+      // Fallback if restaurant not loaded yet
+      return { startDate: '', endDate: '' };
+    }
+
+    const timezone = restaurant.location?.timezone;
+    const today = getTodayInTimezone(timezone);
+
+    let start = today;
 
     switch (timeRange) {
       case 'today':
-        start.setHours(0, 0, 0, 0);
+        start = today;
         break;
       case '7days':
-        start.setDate(end.getDate() - 7);
+        start = getDateWithOffset(-7, timezone);
         break;
       case '30days':
-        start.setDate(end.getDate() - 30);
+        start = getDateWithOffset(-30, timezone);
         break;
       case '3months':
-        start.setMonth(end.getMonth() - 3);
+        start = getDateWithMonthOffset(-3, timezone);
         break;
     }
 
     return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0],
+      startDate: start,
+      endDate: today,
     };
-  }, [timeRange]);
+  }, [timeRange, restaurant]);
 
   const { reservations, isLoading: reservationsLoading } = useReservations(
     restaurantId,

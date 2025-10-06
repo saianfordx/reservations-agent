@@ -129,6 +129,39 @@ export const getCurrentDateTimeTool = (
   },
 });
 
+export const searchReservationsTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'search_reservations',
+  description: 'Search for reservations by customer name, date, or phone number. Use this when a customer wants to modify or cancel a reservation but doesn\'t have their reservation ID. Always call this BEFORE attempting to edit or cancel a reservation.',
+  api_schema: {
+    description: 'This endpoint searches for reservations matching the provided criteria. You can search by name, date, phone number, or any combination. Returns a list of matching reservations with their details including reservation IDs.',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/reservations/search?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'Provide any combination of search criteria from the conversation. At least one field must be provided. Use partial matches for names (e.g., "John" will match "John Smith").',
+      properties: {
+        customer_name: {
+          type: 'string',
+          description: 'Customer name or partial name (optional)',
+        },
+        date: {
+          type: 'string',
+          description: 'Reservation date in YYYY-MM-DD format (optional)',
+        },
+        customer_phone: {
+          type: 'string',
+          description: 'Customer phone number (optional)',
+        },
+      },
+      required: [],
+    },
+  },
+});
+
 export function getAllReservationTools(
   webhookBaseUrl: string,
   restaurantId: string,
@@ -136,6 +169,7 @@ export function getAllReservationTools(
 ) {
   return [
     getCurrentDateTimeTool(webhookBaseUrl, restaurantId, agentId),
+    searchReservationsTool(webhookBaseUrl, restaurantId, agentId),
     createReservationTool(webhookBaseUrl, restaurantId, agentId),
     editReservationTool(webhookBaseUrl, restaurantId, agentId),
     cancelReservationTool(webhookBaseUrl, restaurantId, agentId),

@@ -6,6 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import { Button } from '@/shared/components/ui/button';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 import { useReservations } from '@/features/reservations/hooks/useReservations';
+import { getTodayInTimezone, getDateWithOffset, formatDateToString } from '@/lib/utils/date';
 
 type FilterPeriod = 'today' | 'week' | '15days' | 'month';
 
@@ -35,33 +36,33 @@ export default function ReservationsPage() {
 
   // Calculate date range based on selected period
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const start = new Date(today);
-    const end = new Date(today);
+    // Use restaurant timezone if available, otherwise use local timezone
+    const timezone = selectedRestaurant?.location?.timezone;
+    const todayStr = getTodayInTimezone(timezone);
+
+    let endDateStr = todayStr;
 
     switch (selectedPeriod) {
       case 'today':
         // Start and end are the same day
         break;
       case 'week':
-        end.setDate(end.getDate() + 7);
+        endDateStr = getDateWithOffset(7, timezone);
         break;
       case '15days':
-        end.setDate(end.getDate() + 15);
+        endDateStr = getDateWithOffset(15, timezone);
         break;
       case 'month':
-        end.setDate(end.getDate() + 30);
+        endDateStr = getDateWithOffset(30, timezone);
         break;
     }
 
-    const todayStr = start.toISOString().split('T')[0];
     setDateRange({
       startDate: todayStr,
-      endDate: end.toISOString().split('T')[0],
+      endDate: endDateStr,
     });
     setSelectedDate(todayStr);
-  }, [selectedPeriod]);
+  }, [selectedPeriod, selectedRestaurant]);
 
   // Show loading while checking auth
   if (!isLoaded || !isSignedIn) {
@@ -183,7 +184,7 @@ export default function ReservationsPage() {
         // Today view: Just show the list for today
         <div className="space-y-6">
           {(() => {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getTodayInTimezone(selectedRestaurant?.location?.timezone);
             const dateObj = new Date(todayStr);
             const dayOfWeek = dateObj.toLocaleDateString('en-US', {
               weekday: 'long',
@@ -377,7 +378,7 @@ export default function ReservationsPage() {
                       dateStr <= dateRange.endDate;
                     const isSelected = dateStr === selectedDate;
                     const isToday =
-                      dateStr === new Date().toISOString().split('T')[0];
+                      dateStr === getTodayInTimezone(selectedRestaurant?.location?.timezone);
                     const hasReservations =
                       groupedReservations[dateStr]?.length > 0;
 
@@ -419,8 +420,7 @@ export default function ReservationsPage() {
             {(() => {
               const dateObj = new Date(selectedDate);
               const isToday =
-                dateObj.toISOString().split('T')[0] ===
-                new Date().toISOString().split('T')[0];
+                selectedDate === getTodayInTimezone(selectedRestaurant?.location?.timezone);
               const dayOfWeek = dateObj.toLocaleDateString('en-US', {
                 weekday: 'long',
               });

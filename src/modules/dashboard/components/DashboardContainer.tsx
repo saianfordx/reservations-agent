@@ -8,6 +8,7 @@ import { api } from '../../../../convex/_generated/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Calendar, Phone, Users, Clock, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { getTodayInTimezone, getDateWithOffset, getDateWithMonthOffset } from '@/lib/utils/date';
 
 type TimeRange = 'today' | '7days' | '30days' | '3months';
 
@@ -15,29 +16,30 @@ export function DashboardContainer() {
   const { restaurants, isLoading } = useRestaurants();
   const [timeRange, setTimeRange] = useState<TimeRange>('30days');
 
-  // Calculate date ranges
+  // Calculate date ranges using local timezone (since we're showing aggregated data)
   const { startDate, endDate } = useMemo(() => {
-    const end = new Date();
-    const start = new Date();
+    // Use local timezone for aggregated dashboard
+    const today = getTodayInTimezone();
+    let start = today;
 
     switch (timeRange) {
       case 'today':
-        start.setHours(0, 0, 0, 0);
+        start = today;
         break;
       case '7days':
-        start.setDate(end.getDate() - 7);
+        start = getDateWithOffset(-7);
         break;
       case '30days':
-        start.setDate(end.getDate() - 30);
+        start = getDateWithOffset(-30);
         break;
       case '3months':
-        start.setMonth(end.getMonth() - 3);
+        start = getDateWithMonthOffset(-3);
         break;
     }
 
     return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0],
+      startDate: start,
+      endDate: today,
     };
   }, [timeRange]);
 
