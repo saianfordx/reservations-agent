@@ -9,13 +9,13 @@ export const createReservationTool = (
 ) => ({
   type: 'webhook' as const,
   name: 'create_reservation',
-  description: 'Creates a new restaurant reservation with customer details. Call this function after collecting all required information from the customer.',
+  description: 'Creates a new restaurant reservation with customer details. Call this function after collecting all required information from the customer, including their phone number.',
   api_schema: {
     description: 'This endpoint creates a new reservation in the restaurant system. It will return a confirmation message with a 4-digit reservation ID that you should provide to the customer.',
     url: `${webhookBaseUrl}/api/webhooks/elevenlabs/reservations/create?restaurantId=${restaurantId}&agentId=${agentId}`,
     method: 'POST',
     request_body_schema: {
-      description: 'Extract reservation details from the conversation. Collect the customer\'s full name, preferred date and time, party size, and optionally their phone number and any special requests.',
+      description: 'Extract reservation details from the conversation. Collect the customer\'s full name, preferred date and time, party size, phone number (REQUIRED for tracking), and any special requests.',
       properties: {
         customer_name: {
           type: 'string',
@@ -35,14 +35,14 @@ export const createReservationTool = (
         },
         customer_phone: {
           type: 'string',
-          description: 'Customer phone number (optional)',
+          description: 'Customer phone number (REQUIRED - used for tracking and making changes to the reservation)',
         },
         special_requests: {
           type: 'string',
           description: 'Any special requests or dietary restrictions (optional)',
         },
       },
-      required: ['customer_name', 'date', 'time', 'party_size'],
+      required: ['customer_name', 'date', 'time', 'party_size', 'customer_phone'],
     },
   },
 });

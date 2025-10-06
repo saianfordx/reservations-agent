@@ -36,12 +36,12 @@ export async function POST(req: NextRequest) {
     console.log('Creating reservation:', body);
 
     // Validate inputs
-    if (!customer_name || !date || !time || !party_size) {
+    if (!customer_name || !date || !time || !party_size || !customer_phone) {
       return NextResponse.json(
         {
           success: false,
           message:
-            'Missing required information. Please provide customer name, date, time, and party size.',
+            'Missing required information. Please provide customer name, date, time, party size, and phone number.',
         },
         { status: 400 }
       );
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Reservation confirmed for ${customer_name} on ${date} at ${time} for ${party_size} guests. Your reservation ID is ${result.reservationId}. Please save this ID for future reference.`,
+      message: `Perfect! Your reservation is confirmed for ${customer_name} on ${date} at ${time} for ${party_size} guests. Your callback number is ${customer_phone}. Your reservation ID is ${result.reservationId}. To make any changes or cancel this reservation, simply call us with your phone number ${customer_phone}.`,
       reservation_id: result.reservationId,
       customer_name,
       date,
