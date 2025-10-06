@@ -84,14 +84,14 @@ export function CreateAgentModal({
       console.log('Agent created successfully:', result);
 
       // If onboarding, mark as complete and redirect
-      if (isOnboarding && result?.agent?._id && organization?.id) {
+      if (isOnboarding && result?.agentId && organization?.id) {
         await updateOnboarding({
           clerkOrganizationId: organization.id,
           hasAgent: true,
           completed: true,
         });
 
-        router.push(`/onboarding/complete?agentId=${result.agent._id}&restaurantId=${restaurantId}`);
+        router.push(`/onboarding/complete?agentId=${result.agentId}&restaurantId=${restaurantId}`);
         return;
       }
 
