@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
@@ -180,7 +181,7 @@ export function DashboardContainer() {
         <div className="rounded-xl bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
           <h3 className="mb-4 text-lg font-semibold text-black">Quick Actions</h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <a
+            <Link
               href="/dashboard/restaurants/create"
               className="flex items-center gap-4 rounded-xl bg-white p-4 transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
             >
@@ -191,9 +192,9 @@ export function DashboardContainer() {
                   Add a new restaurant location
                 </p>
               </div>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/dashboard/agents/create"
               className="flex items-center gap-4 rounded-xl bg-white p-4 transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
             >
@@ -204,7 +205,7 @@ export function DashboardContainer() {
                   Set up an AI agent for reservations
                 </p>
               </div>
-            </a>
+            </Link>
           </div>
         </div>
 

@@ -108,7 +108,7 @@ export function EditAgentDialog({ agent, onSuccess }: EditAgentDialogProps) {
         <DialogHeader>
           <DialogTitle>Edit Agent</DialogTitle>
           <DialogDescription>
-            Update your agent's name, voice, and greeting message.
+            Update your agent&apos;s name, voice, and greeting message.
           </DialogDescription>
         </DialogHeader>
 

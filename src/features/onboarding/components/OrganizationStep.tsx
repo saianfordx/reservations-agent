@@ -40,7 +40,7 @@ export function OrganizationStep({ onCreateOrganization, isCreating }: Organizat
           </div>
           <h2 className="text-3xl font-bold">Welcome to AI Reservations!</h2>
           <p className="text-muted-foreground">
-            Let's start by creating your organization
+            Let&apos;s start by creating your organization
           </p>
         </div>
 

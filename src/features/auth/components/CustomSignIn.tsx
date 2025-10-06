@@ -33,8 +33,9 @@ export function CustomSignIn() {
         await setActive({ session: result.createdSessionId });
         router.push('/dashboard');
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Invalid email or password');
+    } catch (err) {
+      const error = err as { errors?: Array<{ message: string }> };
+      setError(error.errors?.[0]?.message || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
@@ -49,8 +50,9 @@ export function CustomSignIn() {
         redirectUrl: '/sso-callback',
         redirectUrlComplete: '/dashboard',
       });
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Failed to sign in with Google');
+    } catch (err) {
+      const error = err as { errors?: Array<{ message: string }> };
+      setError(error.errors?.[0]?.message || 'Failed to sign in with Google');
     }
   };
 
@@ -188,7 +190,7 @@ export function CustomSignIn() {
 
           {/* Sign Up Link */}
           <div className="text-center text-sm">
-            <span className="text-gray-600">Don't have an account? </span>
+            <span className="text-gray-600">Don&apos;t have an account? </span>
             <Link href="/sign-up" className="text-black font-medium hover:underline">
               Sign up
             </Link>
