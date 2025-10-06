@@ -103,20 +103,6 @@ export function useCreateAgent() {
         }
       }
 
-      // Step 4: If documents were uploaded, attach them to the agent
-      if (uploadedDocs.length > 0) {
-        await fetch(`/api/elevenlabs/agents/${elevenLabsAgentId}/update`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            knowledge_base_documents: uploadedDocs.map(doc => ({
-              id: doc.id,
-              name: doc.name,
-            })),
-          }),
-        });
-      }
-
       // Step 4: Save to Convex database
       const agentId = await createAgentMutation({
         restaurantId: params.restaurantId,
@@ -129,7 +115,7 @@ export function useCreateAgent() {
         phoneNumber,
       });
 
-      // Step 5: Update agent webhooks with correct Convex agentId
+      // Step 5: Update agent webhooks with correct Convex agentId and include knowledge base
       await fetch(`/api/elevenlabs/agents/${elevenLabsAgentId}/update-webhooks`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -137,6 +123,9 @@ export function useCreateAgent() {
           restaurantId: params.restaurantId,
           convexAgentId: agentId,
           restaurantName: params.restaurantName,
+          knowledge_base_documents: uploadedDocs.length > 0
+            ? uploadedDocs.map(doc => ({ id: doc.id, name: doc.name }))
+            : undefined,
         }),
       });
 

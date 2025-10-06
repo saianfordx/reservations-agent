@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * Update ElevenLabs agent settings (name, voice, greeting)
  * Only updates ElevenLabs - Convex updates happen on client side
+ *
+ * IMPORTANT: This endpoint fetches the current agent config from ElevenLabs first,
+ * then merges updates to preserve tools and knowledge_base configuration
  */
 export async function PATCH(
   req: NextRequest,
@@ -19,11 +22,37 @@ export async function PATCH(
       );
     }
 
-    // Update ElevenLabs agent (only safe fields)
+    // First, fetch the current agent configuration to preserve tools and knowledge_base
+    const getResponse = await fetch(
+      `https://api.elevenlabs.io/v1/convai/agents/${elevenLabsAgentId}`,
+      {
+        method: 'GET',
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY!,
+        },
+      }
+    );
+
+    if (!getResponse.ok) {
+      const error = await getResponse.text();
+      console.error('Failed to fetch current agent config:', error);
+      throw new Error('Failed to fetch current agent configuration');
+    }
+
+    const currentAgent = await getResponse.json();
+
+    // Build updated payload, preserving existing configuration
     const elevenLabsPayload: {
       name?: string;
       conversation_config?: {
-        agent?: { first_message?: string };
+        agent?: {
+          first_message?: string;
+          prompt?: {
+            prompt?: string;
+            tools?: any[];
+            knowledge_base?: any[];
+          };
+        };
         tts?: { voice_id?: string };
       };
     } = {};
@@ -32,9 +61,13 @@ export async function PATCH(
       elevenLabsPayload.name = name;
     }
 
+    // Build conversation_config, preserving tools and knowledge_base
     if (voiceId !== undefined || greeting !== undefined) {
       elevenLabsPayload.conversation_config = {
-        agent: {},
+        agent: {
+          // Preserve existing prompt configuration
+          prompt: currentAgent.conversation_config?.agent?.prompt || {},
+        },
         tts: {},
       };
 

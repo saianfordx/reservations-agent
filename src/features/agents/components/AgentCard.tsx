@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { EditAgentDialog } from './EditAgentDialog';
 
 interface Agent {
   _id: string;
+  restaurantId: string;
   elevenLabsAgentId: string;
   elevenLabsVoiceId: string;
   name: string;
@@ -20,12 +22,48 @@ interface Agent {
 
 interface AgentCardProps {
   agent: Agent;
+  restaurantName: string;
   onUpdate?: () => void;
 }
 
-export function AgentCard({ agent, onUpdate }: AgentCardProps) {
+export function AgentCard({ agent, restaurantName, onUpdate }: AgentCardProps) {
+  const [isRepairing, setIsRepairing] = useState(false);
+  const [repairSuccess, setRepairSuccess] = useState(false);
+
   const copyPhoneNumber = () => {
     navigator.clipboard.writeText(agent.phoneNumber);
+  };
+
+  const repairAgent = async () => {
+    setIsRepairing(true);
+    setRepairSuccess(false);
+
+    try {
+      const response = await fetch(`/api/elevenlabs/agents/${agent.elevenLabsAgentId}/repair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantId: agent.restaurantId,
+          convexAgentId: agent._id,
+          restaurantName: restaurantName,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to repair agent');
+      }
+
+      setRepairSuccess(true);
+      onUpdate?.();
+
+      // Reset success message after 3 seconds
+      setTimeout(() => setRepairSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error repairing agent:', error);
+      alert('Failed to repair agent. Please try again.');
+    } finally {
+      setIsRepairing(false);
+    }
   };
 
   return (
@@ -83,10 +121,22 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
         </div>
       </div>
 
-      <div className="mt-4 pt-4 flex gap-2">
-        <EditAgentDialog agent={agent} onSuccess={onUpdate} />
-        <Button variant="outline" size="sm" className="flex-1">
-          View Calls
+      <div className="mt-4 pt-4 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <EditAgentDialog agent={agent} onSuccess={onUpdate} />
+          <Button variant="outline" size="sm" className="flex-1">
+            View Calls
+          </Button>
+        </div>
+
+        <Button
+          variant={repairSuccess ? "default" : "outline"}
+          size="sm"
+          onClick={repairAgent}
+          disabled={isRepairing || repairSuccess}
+          className="w-full"
+        >
+          {isRepairing ? 'Repairing...' : repairSuccess ? '✓ Repaired!' : '🔧 Repair Reservations'}
         </Button>
       </div>
     </div>

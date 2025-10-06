@@ -2,27 +2,47 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllReservationTools } from '@/lib/elevenlabs/tools';
 
 /**
- * Update an ElevenLabs agent's webhook URLs with the correct agentId
+ * Repair endpoint to fix agents that may have lost their tools configuration
+ * This fetches the current agent config, and re-applies the tools with correct webhook URLs
  */
-export async function PATCH(
+export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const { agentId } = await params;
-    const { restaurantId, convexAgentId, restaurantName, knowledge_base_documents } = await req.json();
+    const { agentId: elevenLabsAgentId } = await params;
+    const { restaurantId, convexAgentId, restaurantName } = await req.json();
 
     if (!restaurantId || !convexAgentId || !restaurantName) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: restaurantId, convexAgentId, restaurantName' },
         { status: 400 }
       );
     }
 
     const webhookBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    // Get updated tools with correct agentId
+    // Get tools with correct webhook URLs
     const tools = getAllReservationTools(webhookBaseUrl, restaurantId, convexAgentId);
+
+    // Fetch current agent configuration to preserve knowledge_base
+    const getResponse = await fetch(
+      `https://api.elevenlabs.io/v1/convai/agents/${elevenLabsAgentId}`,
+      {
+        method: 'GET',
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY!,
+        },
+      }
+    );
+
+    if (!getResponse.ok) {
+      const error = await getResponse.text();
+      console.error('Failed to fetch agent:', error);
+      throw new Error('Failed to fetch agent configuration');
+    }
+
+    const currentAgent = await getResponse.json();
 
     // Create the agent prompt
     const agentPrompt = `You are a professional restaurant reservation assistant for ${restaurantName}.
@@ -45,24 +65,20 @@ When creating a reservation, you must collect:
 
 After collecting all information, use the create_reservation function to save the reservation.`;
 
-    // Build the prompt config with both tools and knowledge base (if provided)
+    // Build the complete prompt config with both tools and knowledge_base
     const promptConfig: any = {
       prompt: agentPrompt,
       tools: tools,
     };
 
-    // Include knowledge base if documents were provided
-    if (knowledge_base_documents && knowledge_base_documents.length > 0) {
-      promptConfig.knowledge_base = knowledge_base_documents.map((doc: { id: string; name: string }) => ({
-        type: 'file',
-        id: doc.id,
-        name: doc.name,
-      }));
+    // Preserve knowledge_base if it exists
+    if (currentAgent.conversation_config?.agent?.prompt?.knowledge_base) {
+      promptConfig.knowledge_base = currentAgent.conversation_config.agent.prompt.knowledge_base;
     }
 
-    // Update agent with correct webhook URLs AND preserve knowledge base
+    // Update agent with repaired configuration
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/agents/${agentId}`,
+      `https://api.elevenlabs.io/v1/convai/agents/${elevenLabsAgentId}`,
       {
         method: 'PATCH',
         headers: {
@@ -81,20 +97,21 @@ After collecting all information, use the create_reservation function to save th
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Failed to update agent webhooks:', error);
-      throw new Error('Failed to update agent webhooks');
+      console.error('Failed to repair agent:', error);
+      throw new Error('Failed to repair agent');
     }
 
     await response.json(); // Consume response
 
     return NextResponse.json({
       success: true,
-      agent_id: agentId,
+      message: 'Agent repaired successfully. Tools have been restored with correct webhook URLs.',
+      agent_id: elevenLabsAgentId,
     });
   } catch (error) {
-    console.error('Error updating agent webhooks:', error);
+    console.error('Error repairing agent:', error);
     return NextResponse.json(
-      { error: 'Failed to update agent webhooks' },
+      { error: 'Failed to repair agent' },
       { status: 500 }
     );
   }
