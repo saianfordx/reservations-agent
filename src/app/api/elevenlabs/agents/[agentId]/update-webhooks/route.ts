@@ -46,7 +46,7 @@ When creating a reservation, you must collect:
 After collecting all information, use the create_reservation function to save the reservation.`;
 
     // Build the prompt config with both tools and knowledge base (if provided)
-    const promptConfig: any = {
+    const promptConfig: Record<string, unknown> = {
       prompt: agentPrompt,
       tools: tools,
     };

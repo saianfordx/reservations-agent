@@ -47,11 +47,7 @@ export async function PATCH(
       conversation_config?: {
         agent?: {
           first_message?: string;
-          prompt?: {
-            prompt?: string;
-            tools?: any[];
-            knowledge_base?: any[];
-          };
+          prompt?: Record<string, unknown>;
         };
         tts?: { voice_id?: string };
       };
