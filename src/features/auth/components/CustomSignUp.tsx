@@ -208,7 +208,7 @@ export function CustomSignUp() {
             </h2>
             {isInvited && (
               <p className="mt-2 text-gray-600">
-                You've been invited to join an organization. Create your account to get started.
+                You&apos;ve been invited to join an organization. Create your account to get started.
               </p>
             )}
           </div>
@@ -216,7 +216,7 @@ export function CustomSignUp() {
           <form onSubmit={handleSubmit} className="mt-8 space-y-6">
             {isInvited && (
               <div className="bg-primary/10 border border-primary/30 px-4 py-3 rounded-lg text-sm">
-                <p className="text-black font-medium">📨 You're joining by invitation</p>
+                <p className="text-black font-medium">📨 You&apos;re joining by invitation</p>
                 <p className="text-gray-600 mt-1">Complete the form below to create your account</p>
               </div>
             )}

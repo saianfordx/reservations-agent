@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchQuery } from 'convex/nextjs';
+import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../../../../../../convex/_generated/api';
 import { Id } from '../../../../../../convex/_generated/dataModel';
 
@@ -17,8 +17,12 @@ export async function GET(
 
     console.log('Fetching stats for restaurant:', restaurantId);
 
-    // Get all agents for this restaurant from Convex using server-side query (no auth required)
-    const agents = await fetchQuery(api.agents.getByRestaurantServerSide, { restaurantId });
+    // Get all agents for this restaurant from Convex using HTTP client
+    const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    // @ts-expect-error - Convex types are too deep for TS
+    const agents = (await client.query(api.agents.getByRestaurantServerSide, { restaurantId })) as Array<{
+      elevenLabsAgentId: string;
+    }>;
     console.log('Found agents:', agents?.length || 0);
 
     if (!agents || agents.length === 0) {
