@@ -13,8 +13,6 @@ export function CustomSignUp() {
   const { isInvited, invitedEmail, organizationName, invitationTicket } = useInvitationSignUp();
   const [email, setEmail] = useState(invitedEmail || '');
   const [password, setPassword] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+62');
   const [showPassword, setShowPassword] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
   const [code, setCode] = useState('');
@@ -57,7 +55,6 @@ export function CustomSignUp() {
         await signUp.create({
           emailAddress: email,
           password,
-          phoneNumber: phoneNumber ? `${countryCode}${phoneNumber}` : undefined,
         });
 
         // Send email verification code
@@ -252,27 +249,6 @@ export function CustomSignUp() {
                 {error}
               </div>
             )}
-
-            {/* Country Code + Phone Number */}
-            <div className="flex gap-3">
-              <select
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="w-32 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent appearance-none bg-white cursor-pointer"
-              >
-                <option value="+62">Indonesia (+62)</option>
-                <option value="+1">USA (+1)</option>
-                <option value="+44">UK (+44)</option>
-                <option value="+91">India (+91)</option>
-              </select>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="Phone number"
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-              />
-            </div>
 
             {/* Email */}
             <div>
