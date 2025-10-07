@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clerkClient } from '@clerk/nextjs/server';
 
+export const runtime = 'nodejs';
+
 /**
  * Get invitation details from a Clerk invitation ticket
  * Decodes the JWT and fetches email + organization name
  */
 export async function POST(req: NextRequest) {
   try {
-    const { ticket } = await req.json();
+    const body = await req.json();
+    const ticket = body?.ticket;
 
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket is required' }, { status: 400 });
