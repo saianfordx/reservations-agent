@@ -19,7 +19,7 @@ export function useInvitationSignUp() {
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [isInvited, setIsInvited] = useState(false);
 
-  // Detect invitation on mount and extract invitation data
+  // Detect invitation on mount and fetch invitation details
   useEffect(() => {
     const ticket = searchParams.get('__clerk_ticket');
     const status = searchParams.get('__clerk_status');
@@ -28,18 +28,24 @@ export function useInvitationSignUp() {
       setInvitationTicket(ticket);
       setIsInvited(true);
 
-      // Extract invitation metadata from Clerk
-      // Clerk passes invitation data via URL params
-      const emailParam = searchParams.get('email_address');
-      const orgNameParam = searchParams.get('organization_name');
-
-      if (emailParam) {
-        setInvitedEmail(decodeURIComponent(emailParam));
-      }
-
-      if (orgNameParam) {
-        setOrganizationName(decodeURIComponent(orgNameParam));
-      }
+      // Fetch invitation details from our API
+      fetch('/api/invitations/details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.email) {
+            setInvitedEmail(data.email);
+          }
+          if (data.organizationName) {
+            setOrganizationName(data.organizationName);
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching invitation details:', error);
+        });
     }
   }, [searchParams]);
 
