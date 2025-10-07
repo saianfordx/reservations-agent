@@ -49,7 +49,7 @@ export function CustomSignUp() {
         // Ticket strategy auto-verifies email and completes immediately
         if (signUpAttempt.status === 'complete') {
           await setActive({ session: signUpAttempt.createdSessionId });
-          router.push('/onboarding/invited');
+          router.push('/dashboard');
         }
       } else {
         // Regular sign-up flow
