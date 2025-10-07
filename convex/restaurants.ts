@@ -20,7 +20,9 @@ export const getMyRestaurants = query({
       .first();
 
     if (!user) {
-      throw new Error('User not found');
+      // User hasn't been synced yet (e.g., just signed up)
+      // Return empty array instead of throwing error to prevent UI crashes
+      return [];
     }
 
     // If organization context is provided, query by organization

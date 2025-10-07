@@ -49,7 +49,8 @@ export function CustomSignUp() {
         // Ticket strategy auto-verifies email and completes immediately
         if (signUpAttempt.status === 'complete') {
           await setActive({ session: signUpAttempt.createdSessionId });
-          router.push('/dashboard');
+          // Redirect to sync page to ensure data is ready before accessing dashboard
+          router.push('/sync?redirectTo=/dashboard');
         }
       } else {
         // Regular sign-up flow
@@ -85,7 +86,8 @@ export function CustomSignUp() {
 
       if (completeSignUp.status === 'complete') {
         await setActive({ session: completeSignUp.createdSessionId });
-        router.push('/dashboard');
+        // Redirect to sync page to ensure data is ready before accessing dashboard
+        router.push('/sync?redirectTo=/dashboard');
       }
     } catch (err) {
       const error = err as { errors?: Array<{ message: string }> };
