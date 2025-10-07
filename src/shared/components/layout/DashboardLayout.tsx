@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserButton, useAuth } from '@clerk/nextjs';
+import { UserButton, useAuth, useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -13,9 +13,10 @@ import { RestaurantWizard } from '@/features/restaurants/components/RestaurantWi
 import { useRouter } from 'next/navigation';
 import { useOrganization, useOrganizationList } from '@clerk/nextjs';
 import { RestaurantFormData } from '@/features/restaurants/types/restaurant.types';
-import { LayoutDashboard, Store, Calendar, BarChart3, ChevronLeft, ChevronRight, Bot, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CustomOrganizationSwitcher } from './OrganizationSwitcher';
 import { OrganizationOnboarding } from '@/features/organizations/components/OrganizationOnboarding';
+import { NoRestaurantAccessModal } from './NoRestaurantAccessModal';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,30 +28,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useSelectedRestaurant } from '@/contexts/SelectedRestaurantContext';
+import { useNavigationItems } from '@/features/navigation/hooks/useNavigationItems';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
-
-const mainNavigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Businesses', href: '/dashboard/restaurants', icon: Store },
-  { name: 'Reservations', href: '/dashboard/reservations', icon: Calendar },
-  { name: 'Usage', href: '/dashboard/usage', icon: BarChart3 },
-];
-
-const getRestaurantNavigation = (restaurantId: string) => [
-  { name: 'Dashboard', href: `/dashboard/${restaurantId}`, icon: LayoutDashboard },
-  { name: 'Agents', href: `/dashboard/${restaurantId}/agents`, icon: Bot },
-  { name: 'Reservations', href: `/dashboard/${restaurantId}/reservations`, icon: Calendar },
-  { name: 'Configure', href: `/dashboard/${restaurantId}/configure`, icon: Settings },
-];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
   const { organization, isLoaded: orgLoaded } = useOrganization();
+  const { user } = useUser();
   const { createOrganization, setActive } = useOrganizationList();
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -61,6 +50,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Get selected restaurant from context
   const { selectedRestaurantId, setSelectedRestaurantId } = useSelectedRestaurant();
+
+  // Get filtered navigation items based on user permissions
+  const { navigation, showAllBusinesses } = useNavigationItems(selectedRestaurantId);
 
   // Sync URL-based restaurant ID with context
   useEffect(() => {
@@ -92,11 +84,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, [isLoaded, isSignedIn, router]);
 
-  // Only fetch restaurants if authenticated
-  const { restaurants, createRestaurant } = useRestaurants();
+  // Sync organization with Convex FIRST (critical for invited members)
+  const { isSyncing: isOrgSyncing, syncError: orgSyncError } = useOrganizationSync();
 
-  // Sync organization with Convex (only if authenticated)
-  useOrganizationSync();
+  // Only fetch restaurants AFTER sync is complete
+  const { restaurants, createRestaurant } = useRestaurants();
 
   // Check onboarding using the new hook
   const { currentStep: onboardingStep } = useOnboardingFlow();
@@ -162,11 +154,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
-  // Show loading state while checking auth and org
-  if (!isLoaded || !orgLoaded) {
+  // Show loading state while checking auth, org, and syncing
+  if (!isLoaded || !orgLoaded || isOrgSyncing) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">
+          {isOrgSyncing ? 'Syncing organization...' : 'Loading...'}
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if sync failed
+  if (orgSyncError) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-red-500">
+          Failed to sync organization: {orgSyncError}
+        </div>
       </div>
     );
   }
@@ -186,10 +191,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  // Choose navigation based on selected restaurant from context
-  const navigation = selectedRestaurantId
-    ? getRestaurantNavigation(selectedRestaurantId)
-    : mainNavigation;
+  // Check if user is a member (not admin) with no restaurant access
+  const isUserMember = organization && user && user.organizationMemberships?.find(
+    (m) => m.organization.id === organization.id
+  );
+  const isOrgMember = isUserMember && isUserMember.role === 'org:member';
+  const hasNoRestaurantAccess = !restaurants || restaurants.length === 0;
+
+  // Show "No Access" modal for members with zero restaurant access
+  if (isOrgMember && hasNoRestaurantAccess && !isOrgSyncing) {
+    return <NoRestaurantAccessModal />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -220,7 +232,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="flex-1 overflow-y-auto py-4 px-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                 <div className="space-y-2">
                   {/* All Businesses Option */}
-                  {restaurants && restaurants.length > 0 && (
+                  {/* Only show "All" option for org admins */}
+                  {showAllBusinesses && restaurants && restaurants.length > 0 && (
                     <Link
                       href="/dashboard"
                       className={cn(

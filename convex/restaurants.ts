@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { auth } from '@clerk/nextjs/server';
+import { isOrgAdmin } from './permissions';
 
 // Get all restaurants for the current user or organization
 export const getMyRestaurants = query({
@@ -50,14 +51,40 @@ export const getMyRestaurants = query({
         throw new Error('Not a member of this organization');
       }
 
-      // Query restaurants by organization
-      const restaurants = await ctx.db
-        .query('restaurants')
-        .withIndex('by_organization', (q) => q.eq('organizationId', organization._id))
-        .order('desc')
-        .collect();
+      // Check if user is organization admin
+      const isAdmin = isOrgAdmin(membership.role);
 
-      return restaurants;
+      if (isAdmin) {
+        // Org admins see ALL restaurants in the organization
+        const restaurants = await ctx.db
+          .query('restaurants')
+          .withIndex('by_organization', (q) => q.eq('organizationId', organization._id))
+          .order('desc')
+          .collect();
+
+        return restaurants;
+      } else {
+        // Regular members only see restaurants they have explicit access to
+        const accessRecords = await ctx.db
+          .query('restaurantAccess')
+          .withIndex('by_user_and_organization', (q) =>
+            q.eq('userId', user._id).eq('organizationId', organization._id)
+          )
+          .collect();
+
+        // Get the restaurants from access records
+        const restaurants = await Promise.all(
+          accessRecords.map(async (access) => {
+            const restaurant = await ctx.db.get(access.restaurantId);
+            return restaurant;
+          })
+        );
+
+        // Filter out any null results and sort by creation date (newest first)
+        return restaurants
+          .filter((r) => r !== null)
+          .sort((a, b) => b!.createdAt - a!.createdAt) as any[];
+      }
     }
 
     // Personal account context - query by owner

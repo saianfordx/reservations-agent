@@ -4,9 +4,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { useRestaurant, useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
+import { RestaurantMembersManagement } from '@/features/restaurants/components/RestaurantMembersManagement';
 import { Button } from '@/shared/components/ui/button';
-import { Trash2, Edit } from 'lucide-react';
+import { Trash2, Edit, RefreshCw } from 'lucide-react';
 import { Id } from '../../../../../../convex/_generated/dataModel';
+import { useMutation } from 'convex/react';
+import { api } from '../../../../../../convex/_generated/api';
 
 export default function RestaurantConfigurePage() {
   const router = useRouter();
@@ -16,6 +19,8 @@ export default function RestaurantConfigurePage() {
   const { restaurant, isLoading } = useRestaurant(restaurantId);
   const { deleteRestaurant } = useRestaurants();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const runMigration = useMutation(api.migrations.runMigration.runPermissionsMigration);
 
   // Auth guard - redirect to sign in if not authenticated
   useEffect(() => {
@@ -63,6 +68,24 @@ export default function RestaurantConfigurePage() {
       alert('Failed to delete restaurant. Please try again.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleRunMigration = async () => {
+    if (!confirm('Run permissions migration? This will update all restaurant access permissions to match current role definitions.')) {
+      return;
+    }
+
+    try {
+      setIsMigrating(true);
+      const result = await runMigration({});
+      alert(result.message);
+      console.log('Migration result:', result);
+    } catch (error) {
+      console.error('Migration failed:', error);
+      alert('Migration failed. Check console for details.');
+    } finally {
+      setIsMigrating(false);
     }
   };
 
@@ -162,6 +185,32 @@ export default function RestaurantConfigurePage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Members Management */}
+      <div className="rounded-xl bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+        <RestaurantMembersManagement restaurantId={restaurantId} />
+      </div>
+
+      {/* Developer Tools */}
+      <div className="rounded-xl bg-amber-50 border-2 border-amber-200 p-6">
+        <h3 className="text-lg font-semibold mb-2 text-amber-900">Developer Tools</h3>
+        <p className="text-sm text-amber-700 mb-4">
+          Run migrations and administrative tasks. These actions affect all restaurant access records in the system.
+        </p>
+        <Button
+          variant="outline"
+          onClick={handleRunMigration}
+          disabled={isMigrating}
+          className="border-amber-300 hover:bg-amber-100"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isMigrating ? 'animate-spin' : ''}`} />
+          {isMigrating ? 'Running Migration...' : 'Update All Permissions'}
+        </Button>
+        <p className="text-xs text-amber-600 mt-2">
+          This will recalculate permissions for all users based on their current roles.
+          Use this after changing permission definitions.
+        </p>
       </div>
 
       {/* Danger Zone */}

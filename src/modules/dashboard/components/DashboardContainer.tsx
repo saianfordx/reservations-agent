@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
+import { useRouteProtection } from '@/features/auth/hooks/useRouteProtection';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
@@ -13,7 +14,12 @@ import { getTodayInTimezone, getDateWithOffset, getDateWithMonthOffset } from '@
 type TimeRange = 'today' | '7days' | '30days' | '3months';
 
 export function DashboardContainer() {
-  const { restaurants, isLoading } = useRestaurants();
+  // Route protection - redirect non-admins to their first restaurant
+  const { isLoading: protectionLoading, isOrgAdmin } = useRouteProtection({
+    requiresAdmin: true, // This page requires admin access
+  });
+
+  const { restaurants, isLoading: restaurantsLoading } = useRestaurants();
   const [timeRange, setTimeRange] = useState<TimeRange>('30days');
 
   // Calculate date ranges using local timezone (since we're showing aggregated data)
@@ -121,10 +127,26 @@ export function DashboardContainer() {
     }));
   }, [allReservationsData]);
 
-  if (isLoading || !restaurants) {
+  const isLoading = protectionLoading || restaurantsLoading;
+
+  // Show loading while checking permissions or fetching data
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // Only admins should see this page (hook will redirect others)
+  if (!isOrgAdmin) {
+    return null; // Will be redirected by the hook
+  }
+
+  if (!restaurants) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Loading restaurants...</div>
       </div>
     );
   }

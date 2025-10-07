@@ -39,9 +39,24 @@ export function CustomOrganizationSwitcher({ onCreateOrganization, isCollapsed =
   };
 
   const currentOrg = organization;
+
+  // Get the current user's membership to display their actual role
+  const currentMembership = userMemberships?.data?.find(
+    membership => membership.organization.id === currentOrg?.id
+  );
+
   const otherOrgs = userMemberships?.data?.filter(
     membership => membership.organization.id !== currentOrg?.id
   ) || [];
+
+  // Format role for display (convert "org:member" to "Member", "org:admin" to "Admin")
+  const formatRole = (role: string) => {
+    if (!role) return 'Member';
+    // Remove "org:" prefix if present
+    const cleanRole = role.replace('org:', '');
+    // Capitalize first letter
+    return cleanRole.charAt(0).toUpperCase() + cleanRole.slice(1);
+  };
 
   return (
     <div className="relative flex-1 min-w-0">
@@ -86,20 +101,25 @@ export function CustomOrganizationSwitcher({ onCreateOrganization, isCollapsed =
                     </div>
                     <div>
                       <div className="font-semibold text-gray-900">{currentOrg.name}</div>
-                      <div className="text-xs text-gray-500">Admin</div>
+                      <div className="text-xs text-gray-500">
+                        {currentMembership?.role ? formatRole(currentMembership.role) : 'Member'}
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsOpen(false);
-                      setShowManageOrg(true);
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Manage
-                  </button>
+                  {/* Only show Manage button for org admins */}
+                  {currentMembership?.role === 'org:admin' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsOpen(false);
+                        setShowManageOrg(true);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Manage
+                    </button>
+                  )}
                 </div>
               </div>
             )}

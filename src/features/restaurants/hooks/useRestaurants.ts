@@ -8,11 +8,17 @@ import { RestaurantFormData } from '../types/restaurant.types';
 
 export function useRestaurants() {
   const { isSignedIn } = useAuth();
-  const { organization } = useOrganization();
+  const { organization, isLoaded: orgLoaded } = useOrganization();
+
+  // Wait for organization context to be loaded before querying
+  // This is critical for invited members where membership needs to be synced first
+  const shouldQuery = isSignedIn && orgLoaded;
 
   const restaurants = useQuery(
     api.restaurants.getMyRestaurants,
-    isSignedIn && organization ? { clerkOrganizationId: organization.id } : 'skip'
+    shouldQuery
+      ? { clerkOrganizationId: organization?.id }
+      : 'skip'
   );
   const createMutation = useMutation(api.restaurants.createRestaurant);
   const updateMutation = useMutation(api.restaurants.updateRestaurant);

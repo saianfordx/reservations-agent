@@ -64,6 +64,26 @@ export default defineSchema({
     .index('by_clerk_org_and_user', ['clerkOrganizationId', 'clerkUserId']),
 
   // ============================================
+  // RESTAURANT ACCESS CONTROL
+  // ============================================
+
+  restaurantAccess: defineTable({
+    restaurantId: v.id('restaurants'),
+    userId: v.id('users'),
+    organizationId: v.id('organizations'),
+    role: v.string(), // restaurant:owner, restaurant:manager, restaurant:host, restaurant:viewer
+    permissions: v.array(v.string()), // Granular permissions
+    grantedBy: v.id('users'), // Who granted this access
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_restaurant', ['restaurantId'])
+    .index('by_user', ['userId'])
+    .index('by_restaurant_and_user', ['restaurantId', 'userId'])
+    .index('by_organization', ['organizationId'])
+    .index('by_user_and_organization', ['userId', 'organizationId']),
+
+  // ============================================
   // RESTAURANTS
   // ============================================
 
