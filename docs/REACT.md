@@ -352,6 +352,107 @@ export async function POST(request: Request) {
 
 ---
 
+---
+
+## Backend vs Frontend Responsibilities
+
+### Backend (API Routes / Convex)
+**The backend is responsible for:**
+- Data aggregation and computation
+- Business logic and validation
+- External API calls (ElevenLabs, Twilio, etc.)
+- Database queries and mutations
+- Authentication and authorization
+- Returning computed, ready-to-display data
+
+**Example:**
+```typescript
+// ❌ BAD - Frontend doing aggregation
+function DashboardPage() {
+  const [conversations, setConversations] = useState([]);
+
+  useEffect(() => {
+    // Fetching raw data from external API
+    const data = await fetch('/api/elevenlabs/...');
+    // Computing metrics in the frontend
+    const totalCalls = data.conversations.length;
+    const avgDuration = data.reduce(...) / data.length;
+  }, []);
+}
+
+// ✅ GOOD - Backend does aggregation
+// app/api/restaurants/[id]/stats/route.ts
+export async function GET(req, { params }) {
+  const { id } = params;
+
+  // Backend fetches and aggregates
+  const conversations = await fetchFromElevenLabs(agentId);
+  const stats = {
+    totalCalls: conversations.length,
+    avgDuration: calculateAverage(conversations),
+    totalMinutes: calculateTotal(conversations),
+  };
+
+  return Response.json(stats);
+}
+```
+
+### Frontend (Components / Hooks)
+**The frontend is responsible for:**
+- Displaying data
+- User interactions and events
+- Local UI state (open/closed, selected tab, etc.)
+- Calling backend APIs via hooks
+- Rendering and presentation logic
+
+**Example:**
+```typescript
+// ✅ GOOD - Frontend just displays
+function DashboardPage() {
+  const { stats, isLoading } = useRestaurantStats(restaurantId);
+
+  if (isLoading) return <Spinner />;
+
+  return (
+    <div>
+      <StatCard label="Total Calls" value={stats.totalCalls} />
+      <StatCard label="Avg Duration" value={stats.avgDuration} />
+    </div>
+  );
+}
+
+// Custom hook handles API call
+function useRestaurantStats(restaurantId: string) {
+  const [stats, setStats] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/restaurants/${restaurantId}/stats`)
+      .then(res => res.json())
+      .then(setStats)
+      .finally(() => setIsLoading(false));
+  }, [restaurantId]);
+
+  return { stats, isLoading };
+}
+```
+
+### Key Rules
+
+**❌ NEVER:**
+- Define external API response types in page components
+- Fetch external APIs directly from frontend components
+- Do data aggregation, filtering, or complex calculations in the frontend
+- Store business logic in components or hooks
+
+**✅ ALWAYS:**
+- Create backend API routes for data aggregation
+- Return pre-computed, display-ready data from the backend
+- Use custom hooks to fetch from YOUR backend APIs
+- Keep components simple and focused on presentation
+
+---
+
 ## Summary
 
 Modern Next.js/React apps don't use MVC. Instead, they use:
@@ -361,6 +462,7 @@ Modern Next.js/React apps don't use MVC. Instead, they use:
 3. **Component composition** - build UIs from small, reusable pieces
 4. **Server/Client Component separation** - leverage Next.js App Router
 5. **Server Actions** - for internal mutations and form handling
-6. **API Routes** - for external integrations and webhooks
+6. **API Routes** - for external integrations, webhooks, and data aggregation
+7. **Clear separation** - backend computes, frontend displays
 
 This approach is more maintainable, scalable, and aligned with React's component-based philosophy.

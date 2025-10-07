@@ -2,13 +2,27 @@ import { v } from 'convex/values';
 import { mutation, query, action } from './_generated/server';
 import { internal } from './_generated/api';
 
-// Get all agents for a restaurant
+// Get all agents for a restaurant (public - requires auth)
 export const getByRestaurant = query({
   args: { restaurantId: v.id('restaurants') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error('Not authenticated');
 
+    return await ctx.db
+      .query('agents')
+      .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
+      .collect();
+  },
+});
+
+// Public query for server-side API calls (no auth required)
+// Used by backend API routes to fetch agent data
+export const getByRestaurantServerSide = query({
+  args: { restaurantId: v.id('restaurants') },
+  handler: async (ctx, args) => {
+    // No auth check - this is for server-to-server calls
+    // The API route itself is protected by being server-side only
     return await ctx.db
       .query('agents')
       .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))

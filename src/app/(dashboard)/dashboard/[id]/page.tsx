@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
+import { useRestaurantStats } from '@/features/restaurants/hooks/useRestaurantStats';
 import { useReservations } from '@/features/reservations/hooks/useReservations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { TrendingUp, TrendingDown, Calendar, Phone, Users, Clock } from 'lucide-react';
@@ -60,6 +61,9 @@ export default function RestaurantDashboardPage() {
     endDate
   );
 
+  // Fetch call statistics from backend
+  const { stats: callStats } = useRestaurantStats(restaurantId);
+
   // Auth guard - redirect to sign in if not authenticated
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -72,10 +76,12 @@ export default function RestaurantDashboardPage() {
     if (!reservations) return null;
 
     const totalReservations = reservations.length;
-    const totalCalls = reservations.length; // Assuming each reservation = 1 call for now
     const totalPartySize = reservations.reduce((sum, r) => sum + r.partySize, 0);
     const avgPartySize = totalReservations > 0 ? totalPartySize / totalReservations : 0;
-    const avgCallTime = 3.5; // Mock data - replace with actual when available
+
+    // Use call statistics from backend
+    const totalCalls = callStats?.totalCalls || 0;
+    const avgCallTime = callStats?.avgCallTimeMins || 0;
 
     return {
       totalReservations,
@@ -83,7 +89,7 @@ export default function RestaurantDashboardPage() {
       avgCallTime,
       avgPartySize,
     };
-  }, [reservations]);
+  }, [reservations, callStats]);
 
   // Prepare chart data
   const chartData = useMemo(() => {

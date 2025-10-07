@@ -1,5 +1,10 @@
 import { DashboardLayout } from '@/shared/components/layout/DashboardLayout';
+import { SelectedRestaurantProvider } from '@/contexts/SelectedRestaurantContext';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <SelectedRestaurantProvider>
+      <DashboardLayout>{children}</DashboardLayout>
+    </SelectedRestaurantProvider>
+  );
 }

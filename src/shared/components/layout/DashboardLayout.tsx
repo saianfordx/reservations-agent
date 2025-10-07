@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useSelectedRestaurant } from '@/contexts/SelectedRestaurantContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -57,6 +58,32 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isCreateOrgOpen, setIsCreateOrgOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [orgError, setOrgError] = useState<string | null>(null);
+
+  // Get selected restaurant from context
+  const { selectedRestaurantId, setSelectedRestaurantId } = useSelectedRestaurant();
+
+  // Sync URL-based restaurant ID with context
+  useEffect(() => {
+    // Check if we're on the "All Businesses" view
+    if (pathname === '/dashboard') {
+      // Clear selection when on "All" view
+      if (selectedRestaurantId !== null) {
+        setSelectedRestaurantId(null);
+      }
+      return;
+    }
+
+    // Check if we're on a restaurant-specific page
+    const restaurantIdMatch = pathname?.match(/^\/dashboard\/([a-z0-9]+)(?:\/|$)/);
+    const urlRestaurantId = restaurantIdMatch && restaurantIdMatch[1] !== 'restaurants' && restaurantIdMatch[1] !== 'reservations' && restaurantIdMatch[1] !== 'usage' && restaurantIdMatch[1] !== 'agents'
+      ? restaurantIdMatch[1]
+      : null;
+
+    // Update context when URL contains a restaurant ID
+    if (urlRestaurantId && urlRestaurantId !== selectedRestaurantId) {
+      setSelectedRestaurantId(urlRestaurantId);
+    }
+  }, [pathname, selectedRestaurantId, setSelectedRestaurantId]);
 
   // Redirect to landing page if not authenticated
   useEffect(() => {
@@ -159,13 +186,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  // Check if we're on a restaurant-specific page
-  const restaurantIdMatch = pathname?.match(/^\/dashboard\/([a-z0-9]+)(?:\/|$)/);
-  const selectedRestaurantId = restaurantIdMatch && restaurantIdMatch[1] !== 'restaurants' && restaurantIdMatch[1] !== 'reservations' && restaurantIdMatch[1] !== 'usage'
-    ? restaurantIdMatch[1]
-    : null;
-
-  // Choose navigation based on context
+  // Choose navigation based on selected restaurant from context
   const navigation = selectedRestaurantId
     ? getRestaurantNavigation(selectedRestaurantId)
     : mainNavigation;
