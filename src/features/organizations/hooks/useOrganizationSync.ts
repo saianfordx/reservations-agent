@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useOrganization, useUser, useAuth } from '@clerk/nextjs';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
@@ -7,16 +7,17 @@ import { api } from '../../../../convex/_generated/api';
  * Hook to sync the active Clerk organization with Convex
  * Call this in a top-level component (like layout) to ensure sync
  *
- * Returns:
- * - isSyncing: true while initial sync is in progress
- * - syncError: error message if sync failed
+ * Runs silently in the background - does NOT block UI or cause re-renders
+ * Convex queries will reactively update when sync completes
  */
 export function useOrganizationSync() {
   const { isSignedIn } = useAuth();
   const { organization, isLoaded: orgLoaded } = useOrganization();
   const { user, isLoaded: userLoaded } = useUser();
-  const [isSyncing, setIsSyncing] = useState(true);
-  const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Track synced organizations to prevent duplicate syncs
+  const syncedOrgs = useRef(new Set<string>());
+  const isSyncingRef = useRef(false);
 
   const storeUser = useMutation(api.users.store);
   const syncOrganization = useMutation(api.organizations.syncOrganization);
@@ -26,39 +27,47 @@ export function useOrganizationSync() {
     async function sync() {
       // Wait for all Clerk data to be loaded
       if (!orgLoaded || !userLoaded) {
-        setIsSyncing(true);
         return;
       }
 
       // If not signed in, we're done
       if (!isSignedIn) {
-        setIsSyncing(false);
         return;
       }
 
       // If user exists but no organization (personal account), we're done
       if (user && !organization) {
-        setIsSyncing(false);
         return;
       }
 
       // Must have both user and organization to proceed
       if (!user || !organization) {
-        setIsSyncing(true);
         return;
       }
 
       // CRITICAL: Wait for organizationMemberships to load
       // This is loaded asynchronously by Clerk and might not be available immediately
       if (!user.organizationMemberships || user.organizationMemberships.length === 0) {
-        console.log('Waiting for Clerk organizationMemberships to load...');
-        setIsSyncing(true);
+        console.log('[Sync] Waiting for Clerk organizationMemberships to load...');
+        return;
+      }
+
+      // Skip if already synced this organization
+      const orgKey = `${user.id}-${organization.id}`;
+      if (syncedOrgs.current.has(orgKey)) {
+        console.log('[Sync] Organization already synced, skipping:', organization.name);
+        return;
+      }
+
+      // Skip if currently syncing
+      if (isSyncingRef.current) {
+        console.log('[Sync] Sync already in progress, skipping');
         return;
       }
 
       try {
-        setIsSyncing(true);
-        setSyncError(null);
+        isSyncingRef.current = true;
+        console.log('[Sync] Starting background sync for:', organization.name);
 
         // Step 1: Ensure user exists in Convex
         await storeUser();
@@ -92,17 +101,19 @@ export function useOrganizationSync() {
           permissions: permissions,
         });
 
-        console.log('Organization sync completed successfully');
-        setIsSyncing(false);
+        // Mark as synced
+        syncedOrgs.current.add(orgKey);
+        console.log('[Sync] Completed successfully for:', organization.name);
       } catch (error) {
-        console.error('Error syncing organization:', error);
-        setSyncError(error instanceof Error ? error.message : 'Failed to sync organization');
-        setIsSyncing(false);
+        console.error('[Sync] Error syncing organization:', error);
+        // Don't block UI on error - just log it
+      } finally {
+        isSyncingRef.current = false;
       }
     }
 
     sync();
   }, [isSignedIn, organization, user, orgLoaded, userLoaded, storeUser, syncOrganization, syncMembership]);
 
-  return { isSyncing, syncError };
+  // Returns nothing - sync runs silently in background
 }

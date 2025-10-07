@@ -84,10 +84,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, [isLoaded, isSignedIn, router]);
 
-  // Sync organization with Convex FIRST (critical for invited members)
-  const { isSyncing: isOrgSyncing, syncError: orgSyncError } = useOrganizationSync();
+  // Sync organization with Convex in background (non-blocking)
+  // This runs silently and Convex queries will reactively update when sync completes
+  useOrganizationSync();
 
-  // Only fetch restaurants AFTER sync is complete
+  // Fetch restaurants - will update automatically when sync completes
   const { restaurants, createRestaurant } = useRestaurants();
 
   // Check onboarding using the new hook
@@ -154,24 +155,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
-  // Show loading state while checking auth, org, and syncing
-  if (!isLoaded || !orgLoaded || isOrgSyncing) {
+  // Show loading state only while checking auth (not syncing)
+  if (!isLoaded || !orgLoaded) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-muted-foreground">
-          {isOrgSyncing ? 'Syncing organization...' : 'Loading...'}
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if sync failed
-  if (orgSyncError) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-red-500">
-          Failed to sync organization: {orgSyncError}
-        </div>
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
@@ -199,7 +187,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const hasNoRestaurantAccess = !restaurants || restaurants.length === 0;
 
   // Show "No Access" modal for members with zero restaurant access
-  if (isOrgMember && hasNoRestaurantAccess && !isOrgSyncing) {
+  if (isOrgMember && hasNoRestaurantAccess) {
     return <NoRestaurantAccessModal />;
   }
 
