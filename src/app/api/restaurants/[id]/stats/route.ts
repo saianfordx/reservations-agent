@@ -19,7 +19,7 @@ export async function GET(
 
     // Get all agents for this restaurant from Convex using HTTP client
     const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-    // @ts-expect-error - Convex types are too deep for TS
+    // @ts-expect-error - TypeScript has issues with deep Convex type inference
     const agents = (await client.query(api.agents.getByRestaurantServerSide, { restaurantId })) as Array<{
       elevenLabsAgentId: string;
     }>;
