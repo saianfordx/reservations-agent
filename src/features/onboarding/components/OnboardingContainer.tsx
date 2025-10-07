@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useOrganizationList } from '@clerk/nextjs';
+import { useOrganizationList, useUser } from '@clerk/nextjs';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useOnboardingFlow } from '../hooks/useOnboardingFlow';
@@ -10,17 +10,21 @@ import { OrganizationStep } from './OrganizationStep';
 import { RestaurantStep } from './RestaurantStep';
 import { AgentStep } from './AgentStep';
 import { RestaurantFormData } from '@/features/restaurants/types/restaurant.types';
-import { useOrganizationSync } from '@/features/organizations/hooks';
+import { useOrganizationSync, useWaitForOrgSync } from '@/features/organizations/hooks';
 import { useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 
 export function OnboardingContainer() {
   const router = useRouter();
+  const { user } = useUser();
   const { currentStep, isLoading, firstOrg } = useOnboardingFlow();
   const { createOrganization, setActive } = useOrganizationList();
   const updateOnboarding = useMutation(api.organizations.updateOnboardingStatus);
 
   // Sync organization to Convex when it becomes active
   useOrganizationSync();
+
+  // Hook to wait for organization sync
+  const { waitForOrganization } = useWaitForOrgSync(user?.id);
 
   const [isCreating, setIsCreating] = useState(false);
 
@@ -34,9 +38,16 @@ export function OnboardingContainer() {
     try {
       const newOrg = await createOrganization({ name });
 
-      // Set the newly created organization as active so it syncs to Convex
+      // Set the newly created organization as active
       if (newOrg) {
         await setActive({ organization: newOrg.id });
+
+        // Wait for organization to be synced to Convex before continuing
+        // This prevents race conditions where the next step tries to query
+        // organization data that hasn't been synced yet
+        console.log('Waiting for organization sync to complete...');
+        await waitForOrganization(newOrg.id);
+        console.log('Organization sync complete, proceeding to next step');
       }
 
       // The sync hook and flow hook will automatically detect the new org
