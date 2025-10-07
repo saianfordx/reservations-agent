@@ -10,7 +10,7 @@ import { useInvitationSignUp } from '../hooks/useInvitationSignUp';
 
 export function CustomSignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
-  const { isInvited, invitedEmail, organizationName } = useInvitationSignUp();
+  const { isInvited, invitedEmail, organizationName, invitationTicket } = useInvitationSignUp();
   const [email, setEmail] = useState(invitedEmail || '');
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -37,15 +37,32 @@ export function CustomSignUp() {
       setLoading(true);
       setError('');
 
-      await signUp.create({
-        emailAddress: email,
-        password,
-        phoneNumber: phoneNumber ? `${countryCode}${phoneNumber}` : undefined,
-      });
+      // Check if this is an invitation sign-up
+      if (isInvited && invitationTicket) {
+        // Use ticket strategy for invitation
+        const signUpAttempt = await signUp.create({
+          strategy: 'ticket',
+          ticket: invitationTicket,
+          password,
+        });
 
-      // Send email verification code
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setPendingVerification(true);
+        // Ticket strategy auto-verifies email and completes immediately
+        if (signUpAttempt.status === 'complete') {
+          await setActive({ session: signUpAttempt.createdSessionId });
+          router.push('/onboarding/invited');
+        }
+      } else {
+        // Regular sign-up flow
+        await signUp.create({
+          emailAddress: email,
+          password,
+          phoneNumber: phoneNumber ? `${countryCode}${phoneNumber}` : undefined,
+        });
+
+        // Send email verification code
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+        setPendingVerification(true);
+      }
     } catch (err) {
       const error = err as { errors?: Array<{ message: string }> };
       setError(error.errors?.[0]?.message || 'An error occurred during sign up');
