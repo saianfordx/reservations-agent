@@ -19,7 +19,7 @@ export function useInvitationSignUp() {
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [isInvited, setIsInvited] = useState(false);
 
-  // Detect invitation on mount
+  // Detect invitation on mount and extract invitation data
   useEffect(() => {
     const ticket = searchParams.get('__clerk_ticket');
     const status = searchParams.get('__clerk_status');
@@ -28,11 +28,17 @@ export function useInvitationSignUp() {
       setInvitationTicket(ticket);
       setIsInvited(true);
 
-      // Try to decode invitation info from URL or Clerk
-      // Clerk will auto-fill email if it's an invitation
-      const emailParam = searchParams.get('email');
+      // Extract invitation metadata from Clerk
+      // Clerk passes invitation data via URL params
+      const emailParam = searchParams.get('email_address');
+      const orgNameParam = searchParams.get('organization_name');
+
       if (emailParam) {
-        setInvitedEmail(emailParam);
+        setInvitedEmail(decodeURIComponent(emailParam));
+      }
+
+      if (orgNameParam) {
+        setOrganizationName(decodeURIComponent(orgNameParam));
       }
     }
   }, [searchParams]);

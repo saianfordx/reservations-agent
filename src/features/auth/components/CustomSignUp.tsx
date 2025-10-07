@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSignUp } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -10,7 +10,7 @@ import { useInvitationSignUp } from '../hooks/useInvitationSignUp';
 
 export function CustomSignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
-  const { isInvited, invitedEmail } = useInvitationSignUp();
+  const { isInvited, invitedEmail, organizationName } = useInvitationSignUp();
   const [email, setEmail] = useState(invitedEmail || '');
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -21,6 +21,13 @@ export function CustomSignUp() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // Update email when invitedEmail becomes available
+  useEffect(() => {
+    if (invitedEmail) {
+      setEmail(invitedEmail);
+    }
+  }, [invitedEmail]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,7 +215,7 @@ export function CustomSignUp() {
             </h2>
             {isInvited && (
               <p className="mt-2 text-gray-600">
-                You&apos;ve been invited to join an organization. Create your account to get started.
+                You&apos;ve been invited to join {organizationName ? <strong>{organizationName}</strong> : 'an organization'}. Create your account to get started.
               </p>
             )}
           </div>
@@ -255,7 +262,10 @@ export function CustomSignUp() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                disabled={isInvited && !!invitedEmail}
+                className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent ${
+                  isInvited && invitedEmail ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
                 required
               />
             </div>
