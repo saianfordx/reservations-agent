@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Eye, EyeOff } from 'lucide-react';
+import { useInvitationSignUp } from '../hooks/useInvitationSignUp';
 
 export function CustomSignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
-  const [email, setEmail] = useState('');
+  const { isInvited, invitedEmail } = useInvitationSignUp();
+  const [email, setEmail] = useState(invitedEmail || '');
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+62');
@@ -201,10 +203,24 @@ export function CustomSignUp() {
       <div className="flex-1 flex items-center justify-center bg-white p-8">
         <div className="w-full max-w-md space-y-8">
           <div>
-            <h2 className="text-4xl font-bold text-black">Welcome!</h2>
+            <h2 className="text-4xl font-bold text-black">
+              {isInvited ? 'Join the team!' : 'Welcome!'}
+            </h2>
+            {isInvited && (
+              <p className="mt-2 text-gray-600">
+                You've been invited to join an organization. Create your account to get started.
+              </p>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+            {isInvited && (
+              <div className="bg-primary/10 border border-primary/30 px-4 py-3 rounded-lg text-sm">
+                <p className="text-black font-medium">📨 You're joining by invitation</p>
+                <p className="text-gray-600 mt-1">Complete the form below to create your account</p>
+              </div>
+            )}
+
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
