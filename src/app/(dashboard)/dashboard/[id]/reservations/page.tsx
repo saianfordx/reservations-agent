@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
 import { useReservations } from '@/features/reservations/hooks/useReservations';
 import { CreateReservationDialog } from '@/features/reservations/components/CreateReservationDialog';
 import { Id } from '../../../../../../convex/_generated/dataModel';
+import { Search } from 'lucide-react';
 
 type FilterPeriod = 'today' | 'week' | '15days' | 'month';
 
@@ -20,6 +22,7 @@ export default function RestaurantReservationsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { reservations, isLoading: reservationsLoading } = useReservations(
     restaurantId,
@@ -126,15 +129,26 @@ export default function RestaurantReservationsPage() {
     );
   }
 
+  // Filter reservations based on search query
+  const filteredReservations = reservations?.filter((reservation) => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase();
+    const nameMatch = reservation.customerName.toLowerCase().includes(query);
+    const phoneMatch = reservation.customerPhone?.toLowerCase().includes(query);
+
+    return nameMatch || phoneMatch;
+  }) || [];
+
   // Group reservations by date
-  const groupedReservations = reservations?.reduce((acc, reservation) => {
+  const groupedReservations = filteredReservations.reduce((acc, reservation) => {
     const date = reservation.date;
     if (!acc[date]) {
       acc[date] = [];
     }
     acc[date].push(reservation);
     return acc;
-  }, {} as Record<string, typeof reservations>) || {};
+  }, {} as Record<string, typeof filteredReservations>);
 
   // Sort reservations within each date by time
   Object.keys(groupedReservations).forEach((date) => {
@@ -216,6 +230,18 @@ export default function RestaurantReservationsPage() {
 
             return (
               <div className="space-y-3">
+                {/* Search Input */}
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search by name or phone number..."
+                    value={searchQuery}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                    className="pl-10 shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+                  />
+                </div>
+
                 {/* Date Header */}
                 <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 pb-2">
                   <div className="flex items-center gap-3">
@@ -455,6 +481,18 @@ export default function RestaurantReservationsPage() {
 
               return (
                 <>
+                  {/* Search Input */}
+                  <div className="relative w-full mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search by name or phone number..."
+                      value={searchQuery}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                      className="pl-10 shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+                    />
+                  </div>
+
                   {/* Date Header */}
                   <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 pb-2">
                     <div className="flex items-center gap-3">
