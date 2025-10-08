@@ -30,29 +30,32 @@ export function OnboardingContainer() {
 
   // Handle organization creation
   const handleCreateOrganization = async (name: string) => {
-    if (!createOrganization || !setActive) {
+    if (!createOrganization || !setActive || !user) {
       throw new Error('Unable to create organization');
     }
 
     setIsCreating(true);
     try {
+      console.log('[Onboarding] Creating organization:', name);
       const newOrg = await createOrganization({ name });
 
-      // Set the newly created organization as active
       if (newOrg) {
-        await setActive({ organization: newOrg.id });
+        console.log('[Onboarding] Organization created in Clerk:', newOrg.id);
 
-        // Wait for organization to be synced to Convex before continuing
-        // This prevents race conditions where the next step tries to query
-        // organization data that hasn't been synced yet
-        console.log('Waiting for organization sync to complete...');
-        await waitForOrganization(newOrg.id);
-        console.log('Organization sync complete, proceeding to next step');
+        // Set the newly created organization as active
+        await setActive({ organization: newOrg.id });
+        console.log('[Onboarding] Organization set as active');
+
+        // Wait for organization AND membership to be synced to Convex
+        // This is critical: we manually sync both the org and membership
+        console.log('[Onboarding] Waiting for Convex sync...');
+        await waitForOrganization(newOrg.id, user.id, 'org:admin');
+        console.log('[Onboarding] Sync complete, proceeding to next step');
       }
 
       // The sync hook and flow hook will automatically detect the new org
     } catch (error) {
-      console.error('Failed to create organization:', error);
+      console.error('[Onboarding] Failed to create organization:', error);
       throw error;
     } finally {
       setIsCreating(false);
@@ -61,10 +64,11 @@ export function OnboardingContainer() {
 
 
   // Handle completion (redirect to dashboard)
-  if (currentStep === 'complete' && firstOrg) {
-    router.push('/dashboard');
-    return null;
-  }
+  useEffect(() => {
+    if (currentStep === 'complete' && firstOrg) {
+      router.push('/dashboard');
+    }
+  }, [currentStep, firstOrg, router]);
 
   // Loading state
   if (isLoading) {
@@ -124,9 +128,22 @@ export function OnboardingContainer() {
 
 // Helper component to handle restaurant creation with its own hook
 function RestaurantStepWrapper({ organizationId }: { organizationId: string }) {
-  const { createRestaurant } = useRestaurants();
+  const { createRestaurant, isLoading: restaurantsLoading } = useRestaurants();
   const updateOnboarding = useMutation(api.organizations.updateOnboardingStatus);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Don't render the form until restaurants query is ready
+  // This ensures the membership is synced and we can query restaurants
+  if (restaurantsLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center space-y-4">
+          <div className="text-muted-foreground">Setting up your organization...</div>
+          <div className="text-sm text-muted-foreground">This will only take a moment</div>
+        </div>
+      </div>
+    );
+  }
 
   const handleCreateRestaurant = async (data: RestaurantFormData) => {
     setIsCreating(true);

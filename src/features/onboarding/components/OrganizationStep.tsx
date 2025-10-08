@@ -69,7 +69,10 @@ export function OrganizationStep({ onCreateOrganization, isCreating }: Organizat
               disabled={isCreating || !organizationName.trim()}
             >
               {isCreating ? (
-                'Creating...'
+                <span className="flex items-center justify-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Setting up your organization...
+                </span>
               ) : (
                 <>
                   Continue to Restaurant Setup
