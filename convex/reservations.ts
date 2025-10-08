@@ -88,44 +88,39 @@ export const create = mutation({
 
     // Get admin emails
     const adminEmails: string[] = [];
-    if (restaurant.organizationId) {
-      const memberships = await ctx.db
-        .query('organizationMemberships')
-        .withIndex('by_organization', (q) => q.eq('organizationId', restaurant.organizationId!))
-        .collect();
 
-      const adminMemberships = memberships.filter((m) => m.role === 'org:admin');
-      for (const membership of adminMemberships) {
-        const user = await ctx.db.get(membership.userId);
-        if (user?.email) {
-          adminEmails.push(user.email);
+    if (restaurant.organizationId) {
+      // Get the organization owner
+      const organization = await ctx.db.get(restaurant.organizationId);
+      if (organization) {
+        const orgOwner = await ctx.db.get(organization.createdBy);
+        if (orgOwner?.email) {
+          adminEmails.push(orgOwner.email);
         }
       }
 
+      // Get restaurant managers only
       const restaurantAccess = await ctx.db
         .query('restaurantAccess')
         .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
         .collect();
 
-      const restaurantAdmins = restaurantAccess.filter(
-        (access) => access.role === 'restaurant:owner' || access.role === 'restaurant:manager'
+      const restaurantManagers = restaurantAccess.filter(
+        (access) => access.role === 'restaurant:manager'
       );
 
-      for (const access of restaurantAdmins) {
+      for (const access of restaurantManagers) {
         const user = await ctx.db.get(access.userId);
         if (user?.email && !adminEmails.includes(user.email)) {
           adminEmails.push(user.email);
         }
       }
     } else if (restaurant.ownerId) {
+      // Personal account - get owner email
       const owner = await ctx.db.get(restaurant.ownerId);
       if (owner?.email) {
         adminEmails.push(owner.email);
       }
-    }
-
-    if (restaurant.contact.email && !adminEmails.includes(restaurant.contact.email)) {
-      adminEmails.push(restaurant.contact.email);
     }
 
     // Send email notification to restaurant admins
@@ -413,44 +408,39 @@ export const createManual = mutation({
 
     // Get admin emails
     const adminEmails: string[] = [];
-    if (restaurant.organizationId) {
-      const memberships = await ctx.db
-        .query('organizationMemberships')
-        .withIndex('by_organization', (q) => q.eq('organizationId', restaurant.organizationId!))
-        .collect();
 
-      const adminMemberships = memberships.filter((m) => m.role === 'org:admin');
-      for (const membership of adminMemberships) {
-        const user = await ctx.db.get(membership.userId);
-        if (user?.email) {
-          adminEmails.push(user.email);
+    if (restaurant.organizationId) {
+      // Get the organization owner
+      const organization = await ctx.db.get(restaurant.organizationId);
+      if (organization) {
+        const orgOwner = await ctx.db.get(organization.createdBy);
+        if (orgOwner?.email) {
+          adminEmails.push(orgOwner.email);
         }
       }
 
+      // Get restaurant managers only
       const restaurantAccess = await ctx.db
         .query('restaurantAccess')
         .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
         .collect();
 
-      const restaurantAdmins = restaurantAccess.filter(
-        (access) => access.role === 'restaurant:owner' || access.role === 'restaurant:manager'
+      const restaurantManagers = restaurantAccess.filter(
+        (access) => access.role === 'restaurant:manager'
       );
 
-      for (const access of restaurantAdmins) {
+      for (const access of restaurantManagers) {
         const user = await ctx.db.get(access.userId);
         if (user?.email && !adminEmails.includes(user.email)) {
           adminEmails.push(user.email);
         }
       }
     } else if (restaurant.ownerId) {
+      // Personal account - get owner email
       const owner = await ctx.db.get(restaurant.ownerId);
       if (owner?.email) {
         adminEmails.push(owner.email);
       }
-    }
-
-    if (restaurant.contact.email && !adminEmails.includes(restaurant.contact.email)) {
-      adminEmails.push(restaurant.contact.email);
     }
 
     // Send email notification to restaurant admins

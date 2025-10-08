@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 
 /**
  * Get admin emails for a restaurant (public query)
+ * Returns: organization owner + restaurant managers
  */
 export const getAdminEmails = query({
   args: {
@@ -20,34 +21,26 @@ export const getAdminEmails = query({
 
     // If restaurant belongs to an organization
     if (restaurant.organizationId) {
-      // Get all organization admins
-      const memberships = await ctx.db
-        .query('organizationMemberships')
-        .withIndex('by_organization', (q) => q.eq('organizationId', restaurant.organizationId!))
-        .collect();
-
-      // Filter for admins only
-      const adminMemberships = memberships.filter((m) => m.role === 'org:admin');
-
-      // Get user emails
-      for (const membership of adminMemberships) {
-        const user = await ctx.db.get(membership.userId);
-        if (user?.email) {
-          emails.push(user.email);
+      // Get the organization owner
+      const organization = await ctx.db.get(restaurant.organizationId);
+      if (organization) {
+        const orgOwner = await ctx.db.get(organization.createdBy);
+        if (orgOwner?.email) {
+          emails.push(orgOwner.email);
         }
       }
 
-      // Also get restaurant-specific managers/owners
+      // Get restaurant managers only (not owners)
       const restaurantAccess = await ctx.db
         .query('restaurantAccess')
         .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
         .collect();
 
-      const restaurantAdmins = restaurantAccess.filter(
-        (access) => access.role === 'restaurant:owner' || access.role === 'restaurant:manager'
+      const restaurantManagers = restaurantAccess.filter(
+        (access) => access.role === 'restaurant:manager'
       );
 
-      for (const access of restaurantAdmins) {
+      for (const access of restaurantManagers) {
         const user = await ctx.db.get(access.userId);
         if (user?.email && !emails.includes(user.email)) {
           emails.push(user.email);
@@ -59,11 +52,6 @@ export const getAdminEmails = query({
       if (owner?.email) {
         emails.push(owner.email);
       }
-    }
-
-    // Also include the restaurant contact email
-    if (restaurant.contact.email && !emails.includes(restaurant.contact.email)) {
-      emails.push(restaurant.contact.email);
     }
 
     return emails;
