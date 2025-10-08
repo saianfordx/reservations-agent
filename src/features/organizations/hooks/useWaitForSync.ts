@@ -21,6 +21,7 @@ export function useWaitForOrgSync(clerkUserId: string | undefined) {
   /**
    * Wait for organization with specific Clerk ID to appear in Convex
    * AND ensure membership is synced
+   * Retries every 3 seconds until successful
    */
   const waitForOrganization = useCallback(async (
     clerkOrgId: string,
@@ -29,47 +30,65 @@ export function useWaitForOrgSync(clerkUserId: string | undefined) {
   ): Promise<boolean> => {
     console.log('[WaitForSync] Starting sync for org:', clerkOrgId);
 
-    try {
-      // Step 1: Sync the organization to Convex FIRST
-      // We need the org to exist before we can create the membership
-      console.log('[WaitForSync] Syncing organization to Convex...');
+    const maxAttempts = 20; // 20 attempts × 3 seconds = 60 seconds max
+    let attempt = 0;
 
-      // Get org details from Clerk
-      if (!organization || organization.id !== clerkOrgId) {
-        console.error('[WaitForSync] Organization not loaded in Clerk yet');
-        // Wait a bit for Clerk to load the org
+    while (attempt < maxAttempts) {
+      attempt++;
+      console.log(`[WaitForSync] Attempt ${attempt}/${maxAttempts}`);
+
+      try {
+        // Wait 3 seconds before each attempt (except first)
+        if (attempt > 1) {
+          console.log('[WaitForSync] Waiting 3 seconds before retry...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+
+        // Check if organization is loaded in Clerk
+        if (!organization || organization.id !== clerkOrgId) {
+          console.log('[WaitForSync] Organization not loaded in Clerk yet, will retry...');
+          continue; // Retry
+        }
+
+        console.log('[WaitForSync] Organization found in Clerk, syncing to Convex...');
+
+        // Step 1: Sync the organization to Convex
+        await syncOrganization({
+          clerkOrganizationId: clerkOrgId,
+          name: organization.name,
+          slug: organization.slug!,
+          imageUrl: organization.imageUrl,
+          clerkUserId: userId,
+        });
+        console.log('[WaitForSync] Organization synced successfully');
+
+        // Step 2: Sync the membership
+        await syncMembership({
+          clerkOrganizationId: clerkOrgId,
+          clerkUserId: userId,
+          role: role,
+          permissions: [],
+        });
+        console.log('[WaitForSync] Membership synced successfully');
+
+        // Step 3: Give Convex a moment to propagate
         await new Promise(resolve => setTimeout(resolve, 1000));
+
+        console.log('[WaitForSync] Sync complete! Data is ready.');
+        return true;
+
+      } catch (error) {
+        console.error(`[WaitForSync] Attempt ${attempt} failed:`, error);
+        // Continue to retry unless we've exhausted attempts
+        if (attempt >= maxAttempts) {
+          console.error('[WaitForSync] Max attempts reached, sync failed');
+          return false;
+        }
       }
-
-      await syncOrganization({
-        clerkOrganizationId: clerkOrgId,
-        name: organization?.name || 'New Organization',
-        slug: organization?.slug || clerkOrgId.toLowerCase(),
-        imageUrl: organization?.imageUrl,
-        clerkUserId: userId,
-      });
-      console.log('[WaitForSync] Organization synced successfully');
-
-      // Step 2: Now sync the membership
-      // This requires the org to exist in Convex first
-      console.log('[WaitForSync] Syncing membership...');
-      await syncMembership({
-        clerkOrganizationId: clerkOrgId,
-        clerkUserId: userId,
-        role: role,
-        permissions: [],
-      });
-      console.log('[WaitForSync] Membership synced successfully');
-
-      // Step 3: Give Convex a moment to propagate the changes
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('[WaitForSync] Sync complete, ready to proceed');
-      return true;
-
-    } catch (error) {
-      console.error('[WaitForSync] Error during sync:', error);
-      return false;
     }
+
+    console.error('[WaitForSync] Failed to sync after all attempts');
+    return false;
   }, [syncOrganization, syncMembership, organization]);
 
   return {
