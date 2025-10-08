@@ -279,6 +279,9 @@ export function DashboardContainer() {
   // Show aggregated view when restaurants exist
   return (
     <div className="space-y-6">
+      {/* Dashboard Title */}
+      <h1 className="text-3xl font-bold text-black">Dashboard</h1>
+
       {/* Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
