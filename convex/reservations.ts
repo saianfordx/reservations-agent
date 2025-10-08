@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 
 /**
  * Generate a unique 4-digit reservation ID
@@ -54,6 +55,12 @@ export const create = mutation({
 
     const now = Date.now();
 
+    // Get restaurant details for email notification
+    const restaurant = await ctx.db.get(args.restaurantId);
+    if (!restaurant) {
+      throw new Error('Restaurant not found');
+    }
+
     // Create reservation
     const id = await ctx.db.insert('reservations', {
       restaurantId: args.restaurantId,
@@ -77,6 +84,73 @@ export const create = mutation({
       ],
       createdAt: now,
       updatedAt: now,
+    });
+
+    // Get admin emails
+    const adminEmails: string[] = [];
+    if (restaurant.organizationId) {
+      const memberships = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_organization', (q) => q.eq('organizationId', restaurant.organizationId!))
+        .collect();
+
+      const adminMemberships = memberships.filter((m) => m.role === 'org:admin');
+      for (const membership of adminMemberships) {
+        const user = await ctx.db.get(membership.userId);
+        if (user?.email) {
+          adminEmails.push(user.email);
+        }
+      }
+
+      const restaurantAccess = await ctx.db
+        .query('restaurantAccess')
+        .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
+        .collect();
+
+      const restaurantAdmins = restaurantAccess.filter(
+        (access) => access.role === 'restaurant:owner' || access.role === 'restaurant:manager'
+      );
+
+      for (const access of restaurantAdmins) {
+        const user = await ctx.db.get(access.userId);
+        if (user?.email && !adminEmails.includes(user.email)) {
+          adminEmails.push(user.email);
+        }
+      }
+    } else if (restaurant.ownerId) {
+      const owner = await ctx.db.get(restaurant.ownerId);
+      if (owner?.email) {
+        adminEmails.push(owner.email);
+      }
+    }
+
+    if (restaurant.contact.email && !adminEmails.includes(restaurant.contact.email)) {
+      adminEmails.push(restaurant.contact.email);
+    }
+
+    // Send email notification to restaurant admins
+    // @ts-ignore - Type instantiation depth issue with Convex internal types
+    ctx.scheduler.runAfter(0, internal.notifications.sendReservationNotification, {
+      reservationId: id,
+      restaurantId: args.restaurantId,
+      reservationData: {
+        reservationId,
+        customerName: args.customerName,
+        customerPhone: args.customerPhone,
+        date: args.date,
+        time: args.time,
+        partySize: args.partySize,
+        specialRequests: args.specialRequests,
+        source: 'phone_agent',
+      },
+      restaurantData: {
+        name: restaurant.name,
+        address: restaurant.location.address,
+        city: restaurant.location.city,
+        state: restaurant.location.state,
+        contactEmail: restaurant.contact.email,
+      },
+      adminEmails,
     });
 
     return {
@@ -308,6 +382,12 @@ export const createManual = mutation({
 
     const now = Date.now();
 
+    // Get restaurant details for email notification
+    const restaurant = await ctx.db.get(args.restaurantId);
+    if (!restaurant) {
+      throw new Error('Restaurant not found');
+    }
+
     // Create reservation
     const id = await ctx.db.insert('reservations', {
       restaurantId: args.restaurantId,
@@ -329,6 +409,73 @@ export const createManual = mutation({
       ],
       createdAt: now,
       updatedAt: now,
+    });
+
+    // Get admin emails
+    const adminEmails: string[] = [];
+    if (restaurant.organizationId) {
+      const memberships = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_organization', (q) => q.eq('organizationId', restaurant.organizationId!))
+        .collect();
+
+      const adminMemberships = memberships.filter((m) => m.role === 'org:admin');
+      for (const membership of adminMemberships) {
+        const user = await ctx.db.get(membership.userId);
+        if (user?.email) {
+          adminEmails.push(user.email);
+        }
+      }
+
+      const restaurantAccess = await ctx.db
+        .query('restaurantAccess')
+        .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
+        .collect();
+
+      const restaurantAdmins = restaurantAccess.filter(
+        (access) => access.role === 'restaurant:owner' || access.role === 'restaurant:manager'
+      );
+
+      for (const access of restaurantAdmins) {
+        const user = await ctx.db.get(access.userId);
+        if (user?.email && !adminEmails.includes(user.email)) {
+          adminEmails.push(user.email);
+        }
+      }
+    } else if (restaurant.ownerId) {
+      const owner = await ctx.db.get(restaurant.ownerId);
+      if (owner?.email) {
+        adminEmails.push(owner.email);
+      }
+    }
+
+    if (restaurant.contact.email && !adminEmails.includes(restaurant.contact.email)) {
+      adminEmails.push(restaurant.contact.email);
+    }
+
+    // Send email notification to restaurant admins
+    // @ts-ignore - Type instantiation depth issue with Convex internal types
+    ctx.scheduler.runAfter(0, internal.notifications.sendReservationNotification, {
+      reservationId: id,
+      restaurantId: args.restaurantId,
+      reservationData: {
+        reservationId,
+        customerName: args.customerName,
+        customerPhone: args.customerPhone,
+        date: args.date,
+        time: args.time,
+        partySize: args.partySize,
+        specialRequests: args.specialRequests,
+        source: 'manual',
+      },
+      restaurantData: {
+        name: restaurant.name,
+        address: restaurant.location.address,
+        city: restaurant.location.city,
+        state: restaurant.location.state,
+        contactEmail: restaurant.contact.email,
+      },
+      adminEmails,
     });
 
     return {
@@ -502,5 +649,17 @@ export const searchReservations = query({
 
     // Limit to 10 results to avoid overwhelming the agent
     return results.slice(0, 10);
+  },
+});
+
+/**
+ * Get a single reservation by its internal ID (for notifications)
+ */
+export const getById = query({
+  args: {
+    id: v.id('reservations'),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
   },
 });
