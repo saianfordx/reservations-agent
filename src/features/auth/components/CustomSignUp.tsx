@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSignUp } from '@clerk/nextjs';
+import { useSignUp, useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -10,6 +10,7 @@ import { useInvitationSignUp } from '../hooks/useInvitationSignUp';
 
 export function CustomSignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
+  const { isSignedIn } = useAuth();
   const { isInvited, invitedEmail, organizationName, invitationTicket } = useInvitationSignUp();
   const [email, setEmail] = useState(invitedEmail || '');
   const [password, setPassword] = useState('');
@@ -19,6 +20,13 @@ export function CustomSignUp() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.push('/dashboard');
+    }
+  }, [isLoaded, isSignedIn, router]);
 
   // Update email when invitedEmail becomes available
   useEffect(() => {
