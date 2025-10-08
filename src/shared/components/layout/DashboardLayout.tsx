@@ -13,7 +13,7 @@ import { RestaurantWizard } from '@/features/restaurants/components/RestaurantWi
 import { useRouter } from 'next/navigation';
 import { useOrganization, useOrganizationList } from '@clerk/nextjs';
 import { RestaurantFormData } from '@/features/restaurants/types/restaurant.types';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
 import { CustomOrganizationSwitcher } from './OrganizationSwitcher';
 import { OrganizationOnboarding } from '@/features/organizations/components/OrganizationOnboarding';
 import { NoRestaurantAccessModal } from './NoRestaurantAccessModal';
@@ -44,6 +44,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCreateOrgOpen, setIsCreateOrgOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [orgError, setOrgError] = useState<string | null>(null);
@@ -193,7 +194,152 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <div className="flex flex-col h-screen">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-[#000000] border-b border-white/10 shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+        <div className="flex items-center justify-between px-4 h-16">
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="text-white hover:bg-white/10 p-2 rounded-lg"
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+          <div className="flex items-center gap-2">
+            <Image
+              src="/theaccount.png"
+              alt="AI Reservations"
+              width={32}
+              height={32}
+              className="object-contain"
+            />
+          </div>
+          <div className="w-10" />
+        </div>
+      </header>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Drawer */}
+      <div className={cn(
+        "lg:hidden fixed inset-y-0 left-0 z-50 w-80 bg-[#000000] transform transition-transform duration-300 ease-in-out",
+        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex h-full flex-col pt-16">
+          {/* Organization Switcher */}
+          <div className="border-b border-white/10 p-4">
+            <CustomOrganizationSwitcher onCreateOrganization={() => {
+              setIsCreateOrgOpen(true);
+              setIsMobileMenuOpen(false);
+            }} />
+          </div>
+
+          {/* Restaurant Icons Section */}
+          <div className="border-b border-white/10 p-4">
+            <h3 className="text-white text-sm font-medium mb-3">Restaurants</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {/* All Businesses Option */}
+              {showAllBusinesses && restaurants && restaurants.length > 0 && (
+                <button
+                  onClick={() => {
+                    router.push('/dashboard');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    'flex flex-col items-center justify-center p-2 rounded-xl transition-all',
+                    !selectedRestaurantId
+                      ? 'bg-primary/20 shadow-[0_2px_8px_rgba(253,224,71,0.3)]'
+                      : 'hover:bg-white/10'
+                  )}
+                  title="All Businesses"
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/30 flex items-center justify-center">
+                    <span className="text-xs font-bold text-white">All</span>
+                  </div>
+                </button>
+              )}
+
+              {restaurants?.map((restaurant) => (
+                <button
+                  key={restaurant._id}
+                  onClick={() => {
+                    router.push(`/dashboard/${restaurant._id}`);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    'flex flex-col items-center justify-center p-2 rounded-xl transition-all',
+                    selectedRestaurantId === restaurant._id
+                      ? 'bg-primary/20 shadow-[0_2px_8px_rgba(253,224,71,0.3)]'
+                      : 'hover:bg-white/10'
+                  )}
+                  title={restaurant.name}
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/30 flex items-center justify-center">
+                    <span className="text-xs font-bold text-white">
+                      {restaurant.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-white text-xs mt-1 truncate w-full text-center">
+                    {restaurant.name}
+                  </span>
+                </button>
+              ))}
+
+              <button
+                onClick={() => {
+                  setIsWizardOpen(true);
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex flex-col items-center justify-center p-2 rounded-xl bg-primary hover:bg-primary/90 transition-all shadow-[0_4px_12px_rgba(253,224,71,0.3)]"
+                title="Create New Business"
+              >
+                <div className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center">
+                  <span className="text-xl text-black">+</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 space-y-2 px-4 pt-6 overflow-y-auto">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => {
+                    router.push(item.href);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all w-full',
+                    pathname === item.href
+                      ? 'bg-primary text-black shadow-[0_4px_12px_rgba(253,224,71,0.4)]'
+                      : 'text-white hover:bg-white/10 hover:text-white'
+                  )}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <span>{item.name}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* User Button */}
+          <div className="p-4 border-t border-white/10">
+            <div className="flex items-center rounded-xl px-4 py-3">
+              <UserButton />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:flex flex-col h-screen">
         <header className={cn(
           "bg-[#000000] border-b border-white/10 shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-all duration-300",
           isCollapsed ? "w-[144px]" : "w-[320px]"
@@ -333,7 +479,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <main className="flex-1 p-6 overflow-y-auto">{children}</main>
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto pt-20 lg:pt-6">{children}</main>
       </div>
 
       {isWizardOpen && (

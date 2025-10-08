@@ -156,11 +156,11 @@ export default function RestaurantReservationsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 lg:space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-black">Reservations</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl lg:text-3xl font-bold text-black">Reservations</h1>
+          <p className="text-muted-foreground mt-1 lg:mt-2 text-sm lg:text-base">
             {restaurant.name}
           </p>
         </div>
@@ -175,32 +175,32 @@ export default function RestaurantReservationsPage() {
       </div>
 
       {/* Filter Buttons */}
-      <div className="flex gap-3">
+      <div className="flex gap-2 lg:gap-3 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0">
         <Button
           variant={selectedPeriod === 'today' ? 'default' : 'outline'}
           onClick={() => setSelectedPeriod('today')}
-          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex-shrink-0 text-sm lg:text-base"
         >
           Today
         </Button>
         <Button
           variant={selectedPeriod === 'week' ? 'default' : 'outline'}
           onClick={() => setSelectedPeriod('week')}
-          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex-shrink-0 text-sm lg:text-base whitespace-nowrap"
         >
           This Week
         </Button>
         <Button
           variant={selectedPeriod === '15days' ? 'default' : 'outline'}
           onClick={() => setSelectedPeriod('15days')}
-          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex-shrink-0 text-sm lg:text-base"
         >
           15 Days
         </Button>
         <Button
           variant={selectedPeriod === 'month' ? 'default' : 'outline'}
           onClick={() => setSelectedPeriod('month')}
-          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex-shrink-0 text-sm lg:text-base"
         >
           1 Month
         </Button>
@@ -244,17 +244,17 @@ export default function RestaurantReservationsPage() {
 
                 {/* Date Header */}
                 <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 pb-2">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-semibold">
+                  <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-3">
+                    <h2 className="text-xl lg:text-2xl font-semibold">
                       {dayOfWeek}
-                      <span className="ml-2 text-sm font-normal text-primary">
+                      <span className="ml-2 text-xs lg:text-sm font-normal text-primary">
                         (Today)
                       </span>
                     </h2>
-                    <span className="text-muted-foreground/80">
+                    <span className="text-sm lg:text-base text-muted-foreground/80">
                       {formattedDate}
                     </span>
-                    <span className="ml-auto text-sm text-muted-foreground/80">
+                    <span className="lg:ml-auto text-xs lg:text-sm text-muted-foreground/80">
                       {dayReservations.length} reservation
                       {dayReservations.length !== 1 ? 's' : ''}
                     </span>
@@ -281,34 +281,34 @@ export default function RestaurantReservationsPage() {
                       return (
                         <div
                           key={reservation._id}
-                          className="rounded-xl bg-card p-5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+                          className="rounded-xl bg-card p-3 lg:p-5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
                         >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-4">
+                          <div className="flex flex-col lg:flex-row items-start lg:justify-between gap-3 lg:gap-0">
+                            <div className="flex-1 space-y-2 w-full">
+                              <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-lg font-semibold text-primary">
+                                  <span className="text-base lg:text-lg font-semibold text-primary">
                                     {formattedTime}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-black">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold text-sm lg:text-base text-black">
                                     {reservation.customerName}
                                   </span>
-                                  <span className="text-muted-foreground">
+                                  <span className="text-muted-foreground hidden lg:inline">
                                     •
                                   </span>
                                   <span className="flex items-center gap-1">
                                     <span className="text-muted-foreground">
                                       👥
                                     </span>
-                                    <span className="text-black">{reservation.partySize} people</span>
+                                    <span className="text-sm lg:text-base text-black">{reservation.partySize} people</span>
                                   </span>
                                 </div>
                               </div>
 
                               {reservation.customerPhone && (
-                                <div className="flex items-center gap-2 text-sm">
+                                <div className="flex items-center gap-2 text-xs lg:text-sm">
                                   <span className="text-muted-foreground">
                                     📞
                                   </span>
@@ -319,16 +319,16 @@ export default function RestaurantReservationsPage() {
                               )}
 
                               {reservation.specialRequests && (
-                                <div className="text-sm text-muted-foreground">
+                                <div className="text-xs lg:text-sm text-muted-foreground">
                                   <span className="font-medium">Note:</span>{' '}
                                   {reservation.specialRequests}
                                 </div>
                               )}
                             </div>
 
-                            <div className="flex flex-col items-end gap-2">
+                            <div className="flex lg:flex-col items-center lg:items-end gap-2 w-full lg:w-auto justify-between lg:justify-start">
                               <span
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
+                                className={`inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
                                   reservation.status === 'confirmed'
                                     ? 'bg-primary/20 text-primary'
                                     : reservation.status === 'cancelled'
@@ -353,14 +353,14 @@ export default function RestaurantReservationsPage() {
           })()}
         </div>
       ) : (
-        // Week/15days/Month view: Calendar on left, list on right
-        <div className="flex gap-6">
+        // Week/15days/Month view: Calendar on left, list on right (stacked on mobile)
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Calendar View - Left Panel */}
-          <div className="w-[420px] flex-shrink-0">
-            <div className="rounded-xl bg-card p-6 shadow-[0_4px_16px_rgba(0,0,0,0.08)] sticky top-6">
+          <div className="lg:w-[420px] lg:flex-shrink-0">
+            <div className="rounded-xl bg-card p-4 lg:p-6 shadow-[0_4px_16px_rgba(0,0,0,0.08)] lg:sticky lg:top-6">
               <div className="space-y-4">
                 <div className="text-center">
-                  <h3 className="font-semibold text-lg text-black">
+                  <h3 className="font-semibold text-base lg:text-lg text-black">
                     {new Date(dateRange.startDate).toLocaleDateString('en-US', {
                       month: 'long',
                       year: 'numeric',
@@ -369,13 +369,13 @@ export default function RestaurantReservationsPage() {
                 </div>
 
                 {/* Calendar Grid */}
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-0.5 lg:gap-1">
                   {/* Day headers */}
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
                     (day) => (
                       <div
                         key={day}
-                        className="text-center text-xs font-medium text-muted-foreground py-2"
+                        className="text-center text-[10px] lg:text-xs font-medium text-muted-foreground py-1 lg:py-2"
                       >
                         {day}
                       </div>
@@ -432,7 +432,7 @@ export default function RestaurantReservationsPage() {
                           key={day}
                           onClick={() => setSelectedDate(dateStr)}
                           disabled={!isInRange}
-                          className={`aspect-square p-2 rounded-lg text-sm font-medium transition-all relative ${
+                          className={`aspect-square p-1 lg:p-2 rounded-lg text-xs lg:text-sm font-medium transition-all relative ${
                             !isInRange
                               ? 'text-muted-foreground/30 cursor-not-allowed'
                               : isSelected
@@ -445,7 +445,7 @@ export default function RestaurantReservationsPage() {
                           {day}
                           {hasReservations && isInRange && (
                             <div
-                              className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${
+                              className={`absolute bottom-0.5 lg:bottom-1 left-1/2 -translate-x-1/2 w-1 lg:w-1.5 h-1 lg:h-1.5 rounded-full ${
                                 isSelected ? 'bg-primary-foreground' : 'bg-primary'
                               }`}
                             />
@@ -495,19 +495,19 @@ export default function RestaurantReservationsPage() {
 
                   {/* Date Header */}
                   <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 pb-2">
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-2xl font-semibold text-black">
+                    <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-3">
+                      <h2 className="text-xl lg:text-2xl font-semibold text-black">
                         {dayOfWeek}
                         {isToday && (
-                          <span className="ml-2 text-sm font-normal text-primary">
+                          <span className="ml-2 text-xs lg:text-sm font-normal text-primary">
                             (Today)
                           </span>
                         )}
                       </h2>
-                      <span className="text-muted-foreground">
+                      <span className="text-sm lg:text-base text-muted-foreground">
                         {formattedDate}
                       </span>
-                      <span className="ml-auto text-sm text-muted-foreground">
+                      <span className="lg:ml-auto text-xs lg:text-sm text-muted-foreground">
                         {dayReservations.length} reservation
                         {dayReservations.length !== 1 ? 's' : ''}
                       </span>
@@ -534,28 +534,28 @@ export default function RestaurantReservationsPage() {
                         return (
                           <div
                             key={reservation._id}
-                            className="rounded-xl bg-card p-5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+                            className="rounded-xl bg-card p-3 lg:p-5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 space-y-2">
-                                <div className="flex items-center gap-4">
+                            <div className="flex flex-col lg:flex-row items-start lg:justify-between gap-3 lg:gap-0">
+                              <div className="flex-1 space-y-2 w-full">
+                                <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-lg font-semibold text-primary">
+                                    <span className="text-base lg:text-lg font-semibold text-primary">
                                       {formattedTime}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-black">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-semibold text-sm lg:text-base text-black">
                                       {reservation.customerName}
                                     </span>
-                                    <span className="text-muted-foreground">
+                                    <span className="text-muted-foreground hidden lg:inline">
                                       •
                                     </span>
                                     <span className="flex items-center gap-1">
                                       <span className="text-muted-foreground">
                                         👥
                                       </span>
-                                      <span className="text-black">
+                                      <span className="text-sm lg:text-base text-black">
                                         {reservation.partySize} people
                                       </span>
                                     </span>
@@ -563,7 +563,7 @@ export default function RestaurantReservationsPage() {
                                 </div>
 
                                 {reservation.customerPhone && (
-                                  <div className="flex items-center gap-2 text-sm">
+                                  <div className="flex items-center gap-2 text-xs lg:text-sm">
                                     <span className="text-muted-foreground">
                                       📞
                                     </span>
@@ -574,16 +574,16 @@ export default function RestaurantReservationsPage() {
                                 )}
 
                                 {reservation.specialRequests && (
-                                  <div className="text-sm text-muted-foreground">
+                                  <div className="text-xs lg:text-sm text-muted-foreground">
                                     <span className="font-medium">Note:</span>{' '}
                                     {reservation.specialRequests}
                                   </div>
                                 )}
                               </div>
 
-                              <div className="flex flex-col items-end gap-2">
+                              <div className="flex lg:flex-col items-center lg:items-end gap-2 w-full lg:w-auto justify-between lg:justify-start">
                                 <span
-                                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
+                                  className={`inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
                                     reservation.status === 'confirmed'
                                       ? 'bg-primary/20 text-primary'
                                       : reservation.status === 'cancelled'
