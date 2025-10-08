@@ -14,6 +14,7 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as agents from "../agents.js";
+import type * as knowledgeBase from "../knowledgeBase.js";
 import type * as migrations_runMigration from "../migrations/runMigration.js";
 import type * as migrations_updateRestaurantAccessPermissions from "../migrations/updateRestaurantAccessPermissions.js";
 import type * as migrations from "../migrations.js";
@@ -34,6 +35,7 @@ import type * as users from "../users.js";
  */
 declare const fullApi: ApiFromModules<{
   agents: typeof agents;
+  knowledgeBase: typeof knowledgeBase;
   "migrations/runMigration": typeof migrations_runMigration;
   "migrations/updateRestaurantAccessPermissions": typeof migrations_updateRestaurantAccessPermissions;
   migrations: typeof migrations;

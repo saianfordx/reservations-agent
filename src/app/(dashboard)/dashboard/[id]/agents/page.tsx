@@ -91,6 +91,7 @@ export default function RestaurantAgentsPage() {
               agent={agent}
               restaurantName={restaurant.name}
               restaurantTimezone={restaurant.location.timezone}
+              restaurantOrganizationId={restaurant.organizationId}
             />
           ))}
         </div>

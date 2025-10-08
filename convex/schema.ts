@@ -179,6 +179,7 @@ export default defineSchema({
     name: v.string(),
     voiceName: v.string(),
     language: v.string(),
+    prompt: v.optional(v.string()), // Agent's system prompt/instructions
 
     // Agent Behavior Settings
     agentConfig: v.object({
@@ -189,7 +190,7 @@ export default defineSchema({
       voicemailMessage: v.optional(v.string()),
     }),
 
-    // Knowledge Base
+    // Knowledge Base (deprecated - use knowledgeBaseItems table)
     knowledgeBaseId: v.optional(v.string()),
     documents: v.array(
       v.object({
@@ -219,6 +220,34 @@ export default defineSchema({
     .index('by_elevenlabs_agent_id', ['elevenLabsAgentId'])
     .index('by_phone_number', ['phoneNumber'])
     .index('by_status', ['status']),
+
+  // Knowledge Base Items - maps ElevenLabs knowledge base items to organizations
+  knowledgeBaseItems: defineTable({
+    organizationId: v.id('organizations'),
+    elevenLabsFileId: v.string(), // ID from ElevenLabs
+    name: v.string(),
+    type: v.string(), // 'document' or 'text'
+    content: v.optional(v.string()), // For text type items
+    fileUrl: v.optional(v.string()), // For document type items (if needed)
+    fileSize: v.optional(v.number()), // File size in bytes
+    mimeType: v.optional(v.string()), // e.g., 'text/plain', 'application/pdf'
+    uploadedBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_elevenlabs_file_id', ['elevenLabsFileId'])
+    .index('by_organization_and_type', ['organizationId', 'type']),
+
+  // Agent Knowledge Base Mapping - links agents to their knowledge base items
+  agentKnowledgeBase: defineTable({
+    agentId: v.id('agents'),
+    knowledgeBaseItemId: v.id('knowledgeBaseItems'),
+    addedAt: v.number(),
+  })
+    .index('by_agent', ['agentId'])
+    .index('by_knowledge_item', ['knowledgeBaseItemId'])
+    .index('by_agent_and_item', ['agentId', 'knowledgeBaseItemId']),
 
   // ============================================
   // RESERVATIONS

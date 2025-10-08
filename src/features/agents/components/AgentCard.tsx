@@ -8,6 +8,7 @@ import { EditAgentDialog } from './EditAgentDialog';
 interface Agent {
   _id: string;
   restaurantId: string;
+  organizationId?: string;
   elevenLabsAgentId: string;
   elevenLabsVoiceId: string;
   name: string;
@@ -25,10 +26,11 @@ interface AgentCardProps {
   agent: Agent;
   restaurantName: string;
   restaurantTimezone: string;
+  restaurantOrganizationId?: string;
   onUpdate?: () => void;
 }
 
-export function AgentCard({ agent, restaurantName, restaurantTimezone, onUpdate }: AgentCardProps) {
+export function AgentCard({ agent, restaurantName, restaurantTimezone, restaurantOrganizationId, onUpdate }: AgentCardProps) {
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairSuccess, setRepairSuccess] = useState(false);
 
@@ -126,7 +128,7 @@ export function AgentCard({ agent, restaurantName, restaurantTimezone, onUpdate 
 
       <div className="mt-4 pt-4 flex flex-col gap-2">
         <div className="flex gap-2">
-          <EditAgentDialog agent={agent} onSuccess={onUpdate} />
+          <EditAgentDialog agent={agent} restaurantOrganizationId={restaurantOrganizationId} onSuccess={onUpdate} />
           <Link href={`/dashboard/agents/${agent.elevenLabsAgentId}/calls`} className="flex-1">
             <Button variant="outline" size="sm" className="w-full">
               View Calls

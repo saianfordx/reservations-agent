@@ -78,10 +78,15 @@ export const create = mutation({
 
     if (!user) throw new Error('User not found');
 
+    // Get the restaurant to retrieve organizationId
+    const restaurant = await ctx.db.get(args.restaurantId);
+    if (!restaurant) throw new Error('Restaurant not found');
+
     const now = Date.now();
 
     const agentId = await ctx.db.insert('agents', {
       restaurantId: args.restaurantId,
+      organizationId: restaurant.organizationId,
       ownerId: user._id,
       elevenLabsAgentId: args.elevenLabsAgentId,
       elevenLabsVoiceId: args.elevenLabsVoiceId,
@@ -132,7 +137,7 @@ export const updateDocuments = mutation({
   },
 });
 
-// Update agent settings (name, voice, greeting)
+// Update agent settings (name, voice, greeting, prompt)
 export const update = mutation({
   args: {
     agentId: v.id('agents'),
@@ -140,6 +145,7 @@ export const update = mutation({
     voiceId: v.optional(v.string()),
     voiceName: v.optional(v.string()),
     greeting: v.optional(v.string()),
+    prompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -155,6 +161,7 @@ export const update = mutation({
     if (args.name !== undefined) updates.name = args.name;
     if (args.voiceId !== undefined) updates.elevenLabsVoiceId = args.voiceId;
     if (args.voiceName !== undefined) updates.voiceName = args.voiceName;
+    if (args.prompt !== undefined) updates.prompt = args.prompt;
     if (args.greeting !== undefined) {
       updates.agentConfig = {
         ...agent.agentConfig,

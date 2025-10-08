@@ -13,7 +13,7 @@ export async function PATCH(
 ) {
   try {
     await params; // Await params for Next.js 15 compatibility
-    const { elevenLabsAgentId, name, voiceId, greeting } = await req.json();
+    const { elevenLabsAgentId, name, voiceId, greeting, prompt } = await req.json();
 
     if (!elevenLabsAgentId) {
       return NextResponse.json(
@@ -57,27 +57,43 @@ export async function PATCH(
       elevenLabsPayload.name = name;
     }
 
-    // Build conversation_config, preserving tools and knowledge_base
-    if (voiceId !== undefined || greeting !== undefined) {
-      elevenLabsPayload.conversation_config = {
-        agent: {
-          // Preserve existing prompt configuration
-          prompt: currentAgent.conversation_config?.agent?.prompt || {},
-        },
-        tts: {},
-      };
+    // Build conversation_config, only including what we're actually updating
+    if (voiceId !== undefined || greeting !== undefined || prompt !== undefined) {
+      elevenLabsPayload.conversation_config = {};
 
-      if (greeting !== undefined && elevenLabsPayload.conversation_config.agent) {
-        elevenLabsPayload.conversation_config.agent.first_message = greeting;
+      // Only add agent config if we're updating greeting or prompt
+      if (greeting !== undefined || prompt !== undefined) {
+        elevenLabsPayload.conversation_config.agent = {};
+
+        if (greeting !== undefined) {
+          elevenLabsPayload.conversation_config.agent.first_message = greeting;
+        }
+
+        if (prompt !== undefined) {
+          // Preserve existing prompt config (like knowledge_base) while updating prompt text
+          const existingPrompt = currentAgent.conversation_config?.agent?.prompt || {};
+          // Remove tools/tool_ids from prompt to avoid conflicts
+          const { tools, tool_ids, ...promptWithoutTools } = existingPrompt;
+
+          elevenLabsPayload.conversation_config.agent.prompt = {
+            ...promptWithoutTools,
+            prompt: prompt,
+          };
+        }
       }
 
-      if (voiceId !== undefined && elevenLabsPayload.conversation_config.tts) {
-        elevenLabsPayload.conversation_config.tts.voice_id = voiceId;
+      // Only add tts config if we're updating voice
+      if (voiceId !== undefined) {
+        elevenLabsPayload.conversation_config.tts = {
+          voice_id: voiceId,
+        };
       }
     }
 
     // Only call ElevenLabs if there are updates
     if (Object.keys(elevenLabsPayload).length > 0) {
+      console.log('Sending to ElevenLabs:', JSON.stringify(elevenLabsPayload, null, 2));
+
       const response = await fetch(
         `https://api.elevenlabs.io/v1/convai/agents/${elevenLabsAgentId}`,
         {
@@ -92,8 +108,13 @@ export async function PATCH(
 
       if (!response.ok) {
         const error = await response.text();
-        console.error('Failed to update ElevenLabs agent:', error);
-        throw new Error('Failed to update agent in ElevenLabs');
+        console.error('ElevenLabs API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: error,
+          payload: elevenLabsPayload
+        });
+        throw new Error(`Failed to update agent in ElevenLabs: ${response.status} - ${error}`);
       }
     }
 
