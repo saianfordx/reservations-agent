@@ -151,6 +151,7 @@ export default defineSchema({
       minPartySize: v.number(),
       advanceBookingDays: v.number(),
       cancellationPolicy: v.optional(v.string()),
+      notificationEmails: v.optional(v.array(v.string())),
     }),
     status: v.string(), // active, paused, archived
     createdAt: v.number(),

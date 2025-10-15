@@ -520,3 +520,68 @@ export const deleteRestaurant = mutation({
     return args.id;
   },
 });
+
+// Update notification emails for a restaurant
+export const updateNotificationEmails = mutation({
+  args: {
+    restaurantId: v.id('restaurants'),
+    emails: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Not authenticated');
+    }
+
+    const restaurant = await ctx.db.get(args.restaurantId);
+
+    if (!restaurant) {
+      throw new Error('Restaurant not found');
+    }
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+      .first();
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify access - either organization member with permissions or personal owner
+    if (restaurant.organizationId) {
+      const orgId = restaurant.organizationId;
+      const membership = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_organization_and_user', (q) =>
+          q.eq('organizationId', orgId).eq('userId', user._id)
+        )
+        .first();
+
+      if (!membership) {
+        throw new Error('Unauthorized');
+      }
+
+      if (membership.role !== 'org:admin' && !membership.permissions.includes('org:restaurant:update')) {
+        throw new Error('Insufficient permissions to update restaurant');
+      }
+    } else if (restaurant.ownerId) {
+      if (restaurant.ownerId !== user._id) {
+        throw new Error('Unauthorized');
+      }
+    } else {
+      throw new Error('Restaurant has no owner or organization');
+    }
+
+    // Update the notification emails in the settings
+    await ctx.db.patch(args.restaurantId, {
+      settings: {
+        ...restaurant.settings,
+        notificationEmails: args.emails,
+      },
+      updatedAt: Date.now(),
+    });
+
+    return args.restaurantId;
+  },
+});

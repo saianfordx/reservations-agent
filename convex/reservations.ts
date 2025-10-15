@@ -123,6 +123,15 @@ export const create = mutation({
       }
     }
 
+    // Add notification emails from restaurant settings
+    if (restaurant.settings.notificationEmails) {
+      for (const email of restaurant.settings.notificationEmails) {
+        if (email && !adminEmails.includes(email)) {
+          adminEmails.push(email);
+        }
+      }
+    }
+
     // Send email notification to restaurant admins
     // @ts-ignore - Type instantiation depth issue with Convex internal types
     ctx.scheduler.runAfter(0, internal.notifications.sendReservationNotification, {
@@ -440,6 +449,15 @@ export const createManual = mutation({
       const owner = await ctx.db.get(restaurant.ownerId);
       if (owner?.email) {
         adminEmails.push(owner.email);
+      }
+    }
+
+    // Add notification emails from restaurant settings
+    if (restaurant.settings.notificationEmails) {
+      for (const email of restaurant.settings.notificationEmails) {
+        if (email && !adminEmails.includes(email)) {
+          adminEmails.push(email);
+        }
       }
     }
 

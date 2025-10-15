@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { useRestaurant, useRestaurants } from '@/features/restaurants/hooks/useRestaurants';
 import { RestaurantMembersManagement } from '@/features/restaurants/components/RestaurantMembersManagement';
+import { NotificationEmailsList } from '@/features/restaurants/components/NotificationEmailsList';
 import { Button } from '@/shared/components/ui/button';
 import { Trash2, Edit, RefreshCw } from 'lucide-react';
 import { Id } from '../../../../../../convex/_generated/dataModel';
@@ -190,6 +191,14 @@ export default function RestaurantConfigurePage() {
       {/* Members Management */}
       <div className="rounded-xl bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
         <RestaurantMembersManagement restaurantId={restaurantId} />
+      </div>
+
+      {/* Notification Emails */}
+      <div className="rounded-xl bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+        <NotificationEmailsList
+          restaurantId={restaurantId}
+          currentEmails={restaurant.settings.notificationEmails || []}
+        />
       </div>
 
       {/* Developer Tools */}
