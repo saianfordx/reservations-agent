@@ -175,23 +175,47 @@ export const sendReservationNotification = internalAction({
     `;
 
     try {
-      // Send email to all admins
-      const { data, error } = await resend.emails.send({
-        from: 'Reservations <onboarding@resend.dev>',
-        to: adminEmails,
-        subject: `New Reservation - ${restaurantData.name} - ${formattedDate}`,
-        html: emailHtml,
+      console.log('Attempting to send emails to:', adminEmails);
+
+      // Send individual emails to each recipient
+      const emailPromises = adminEmails.map(async (email) => {
+        console.log(`Sending email to: ${email}`);
+        const { data, error } = await resend.emails.send({
+          from: 'Reservations <onboarding@resend.dev>',
+          to: email,
+          subject: `New Reservation - ${restaurantData.name} - ${formattedDate}`,
+          html: emailHtml,
+        });
+
+        if (error) {
+          console.error(`Error sending email to ${email}:`, error);
+          return { success: false, email, error: error.message };
+        }
+
+        console.log(`Email sent successfully to ${email}, ID: ${data?.id}`);
+        return { success: true, email, emailId: data?.id };
       });
 
-      if (error) {
-        console.error('Error sending email:', error);
-        return { success: false, error: error.message };
+      // Wait for all emails to be sent
+      const results = await Promise.all(emailPromises);
+
+      // Check if any failed
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0) {
+        console.error('Some emails failed to send:', failures);
       }
 
-      console.log('Reservation notification sent:', data);
-      return { success: true, emailId: data?.id };
+      const successCount = results.filter(r => r.success).length;
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} emails`);
+
+      return {
+        success: successCount > 0,
+        totalSent: successCount,
+        totalFailed: failures.length,
+        results
+      };
     } catch (error: any) {
-      console.error('Failed to send reservation notification:', error);
+      console.error('Failed to send reservation notifications:', error);
       return { success: false, error: error.message };
     }
   },

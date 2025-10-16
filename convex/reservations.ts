@@ -125,12 +125,16 @@ export const create = mutation({
 
     // Add notification emails from restaurant settings
     if (restaurant.settings.notificationEmails) {
+      console.log('Found notification emails in settings:', restaurant.settings.notificationEmails);
       for (const email of restaurant.settings.notificationEmails) {
+        console.log(email);
         if (email && !adminEmails.includes(email)) {
           adminEmails.push(email);
         }
       }
     }
+
+    console.log('Final adminEmails array being sent:', adminEmails);
 
     // Send email notification to restaurant admins
     // @ts-ignore - Type instantiation depth issue with Convex internal types
@@ -454,12 +458,15 @@ export const createManual = mutation({
 
     // Add notification emails from restaurant settings
     if (restaurant.settings.notificationEmails) {
+      console.log('Found notification emails in settings:', restaurant.settings.notificationEmails);
       for (const email of restaurant.settings.notificationEmails) {
         if (email && !adminEmails.includes(email)) {
           adminEmails.push(email);
         }
       }
     }
+
+    console.log('Final adminEmails array being sent:', adminEmails);
 
     // Send email notification to restaurant admins
     // @ts-ignore - Type instantiation depth issue with Convex internal types
