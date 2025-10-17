@@ -1,6 +1,8 @@
 /**
- * ElevenLabs Tool Definitions for Reservation Management
+ * ElevenLabs Tool Definitions for Reservation and Order Management
  */
+
+// ==================== RESERVATION TOOLS ====================
 
 export const createReservationTool = (
   webhookBaseUrl: string,
@@ -162,6 +164,190 @@ export const searchReservationsTool = (
   },
 });
 
+// ==================== TO-GO ORDER TOOLS ====================
+
+export const createOrderTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'create_order',
+  description: 'Creates a new to-go order with customer details and menu items. Call this function after collecting all required information from the customer including their phone number and the items they want to order.',
+  api_schema: {
+    description: 'This endpoint creates a new to-go order in the restaurant system. It will return a confirmation message with a 4-digit order ID that you should provide to the customer.',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/orders/create?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'Extract order details from the conversation. Collect the customer\'s full name, phone number (REQUIRED), list of items with quantities, and any special instructions or pickup time preferences.',
+      properties: {
+        customer_name: {
+          type: 'string',
+          description: 'Full name of the customer placing the order',
+        },
+        customer_phone: {
+          type: 'string',
+          description: 'Customer phone number (REQUIRED - used for tracking and making changes to the order)',
+        },
+        items: {
+          type: 'array',
+          description: 'List of items the customer wants to order',
+          items: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Name of the menu item',
+              },
+              quantity: {
+                type: 'number',
+                description: 'Quantity of this item',
+              },
+              special_instructions: {
+                type: 'string',
+                description: 'Any special instructions for this item (optional)',
+              },
+            },
+            required: ['name', 'quantity'],
+          },
+        },
+        order_notes: {
+          type: 'string',
+          description: 'General notes or instructions for the entire order (optional)',
+        },
+        pickup_time: {
+          type: 'string',
+          description: 'Preferred pickup time in HH:MM 24-hour format (optional, defaults to ASAP)',
+        },
+        pickup_date: {
+          type: 'string',
+          description: 'Pickup date in YYYY-MM-DD format (optional, defaults to today)',
+        },
+      },
+      required: ['customer_name', 'customer_phone', 'items'],
+    },
+  },
+});
+
+export const editOrderTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'edit_order',
+  description: 'Modifies an existing to-go order. Use this when a customer wants to change their order items, pickup time, or add notes.',
+  api_schema: {
+    description: 'This endpoint updates an existing order. You must provide the order ID and at least one field to update (items, order_notes, pickup_time, or pickup_date).',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/orders/edit?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'Extract the order ID from the customer and any fields they want to modify. Only include fields that the customer wants to change.',
+      properties: {
+        order_id: {
+          type: 'string',
+          description: '4-digit order ID',
+        },
+        items: {
+          type: 'array',
+          description: 'Updated list of items (optional)',
+          items: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Name of the menu item',
+              },
+              quantity: {
+                type: 'number',
+                description: 'Quantity of this item',
+              },
+              special_instructions: {
+                type: 'string',
+                description: 'Any special instructions for this item (optional)',
+              },
+            },
+            required: ['name', 'quantity'],
+          },
+        },
+        order_notes: {
+          type: 'string',
+          description: 'Updated order notes (optional)',
+        },
+        pickup_time: {
+          type: 'string',
+          description: 'New pickup time in HH:MM format (optional)',
+        },
+        pickup_date: {
+          type: 'string',
+          description: 'New pickup date in YYYY-MM-DD format (optional)',
+        },
+      },
+      required: ['order_id'],
+    },
+  },
+});
+
+export const cancelOrderTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'cancel_order',
+  description: 'Cancels an existing to-go order. Use this when a customer wants to cancel their order.',
+  api_schema: {
+    description: 'This endpoint cancels an existing order. You must provide the 4-digit order ID. The cancellation is permanent.',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/orders/cancel?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'Extract the 4-digit order ID that the customer wants to cancel from the conversation.',
+      properties: {
+        order_id: {
+          type: 'string',
+          description: '4-digit order ID to cancel',
+        },
+      },
+      required: ['order_id'],
+    },
+  },
+});
+
+export const searchOrdersTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'search_orders',
+  description: 'Search for to-go orders by customer name, pickup date, or phone number. Use this when a customer wants to modify or cancel an order but doesn\'t have their order ID. Always call this BEFORE attempting to edit or cancel an order.',
+  api_schema: {
+    description: 'This endpoint searches for orders matching the provided criteria. You can search by name, pickup date, phone number, or any combination. Returns a list of matching orders with their details including order IDs.',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/orders/search?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'Provide any combination of search criteria from the conversation. At least one field must be provided. Use partial matches for names (e.g., "John" will match "John Smith").',
+      properties: {
+        customer_name: {
+          type: 'string',
+          description: 'Customer name or partial name (optional)',
+        },
+        pickup_date: {
+          type: 'string',
+          description: 'Pickup date in YYYY-MM-DD format (optional)',
+        },
+        customer_phone: {
+          type: 'string',
+          description: 'Customer phone number (optional)',
+        },
+      },
+      required: [],
+    },
+  },
+});
+
+// ==================== COMBINED TOOL SETS ====================
+
 export function getAllReservationTools(
   webhookBaseUrl: string,
   restaurantId: string,
@@ -173,5 +359,37 @@ export function getAllReservationTools(
     createReservationTool(webhookBaseUrl, restaurantId, agentId),
     editReservationTool(webhookBaseUrl, restaurantId, agentId),
     cancelReservationTool(webhookBaseUrl, restaurantId, agentId),
+  ];
+}
+
+export function getAllOrderTools(
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) {
+  return [
+    getCurrentDateTimeTool(webhookBaseUrl, restaurantId, agentId),
+    searchOrdersTool(webhookBaseUrl, restaurantId, agentId),
+    createOrderTool(webhookBaseUrl, restaurantId, agentId),
+    editOrderTool(webhookBaseUrl, restaurantId, agentId),
+    cancelOrderTool(webhookBaseUrl, restaurantId, agentId),
+  ];
+}
+
+export function getAllTools(
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) {
+  return [
+    getCurrentDateTimeTool(webhookBaseUrl, restaurantId, agentId),
+    searchReservationsTool(webhookBaseUrl, restaurantId, agentId),
+    createReservationTool(webhookBaseUrl, restaurantId, agentId),
+    editReservationTool(webhookBaseUrl, restaurantId, agentId),
+    cancelReservationTool(webhookBaseUrl, restaurantId, agentId),
+    searchOrdersTool(webhookBaseUrl, restaurantId, agentId),
+    createOrderTool(webhookBaseUrl, restaurantId, agentId),
+    editOrderTool(webhookBaseUrl, restaurantId, agentId),
+    cancelOrderTool(webhookBaseUrl, restaurantId, agentId),
   ];
 }

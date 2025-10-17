@@ -3,9 +3,9 @@ import { mutation, query } from './_generated/server';
 import { internal } from './_generated/api';
 
 /**
- * Generate a unique 4-digit reservation ID
+ * Generate a unique 4-digit order ID
  */
-async function generateReservationId(
+async function generateOrderId(
   ctx: any,
   restaurantId: string
 ): Promise<string> {
@@ -18,9 +18,9 @@ async function generateReservationId(
 
     // Check if it exists for this restaurant
     const existing = await ctx.db
-      .query('reservations')
-      .withIndex('by_reservation_id', (q: any) =>
-        q.eq('restaurantId', restaurantId).eq('reservationId', id)
+      .query('orders')
+      .withIndex('by_order_id', (q: any) =>
+        q.eq('restaurantId', restaurantId).eq('orderId', id)
       )
       .first();
 
@@ -31,27 +31,33 @@ async function generateReservationId(
     attempts++;
   }
 
-  throw new Error('Could not generate unique reservation ID');
+  throw new Error('Could not generate unique order ID');
 }
 
 /**
- * Create a new reservation
+ * Create a new order
  */
 export const create = mutation({
   args: {
     restaurantId: v.id('restaurants'),
     agentId: v.id('agents'),
     customerName: v.string(),
-    date: v.string(),
-    time: v.string(),
-    partySize: v.number(),
-    customerPhone: v.optional(v.string()),
-    specialRequests: v.optional(v.string()),
+    customerPhone: v.string(),
+    items: v.array(
+      v.object({
+        name: v.string(),
+        quantity: v.number(),
+        specialInstructions: v.optional(v.string()),
+      })
+    ),
+    orderNotes: v.optional(v.string()),
+    pickupTime: v.optional(v.string()),
+    pickupDate: v.optional(v.string()),
     callId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Generate unique reservation ID
-    const reservationId = await generateReservationId(ctx, args.restaurantId);
+    // Generate unique order ID
+    const orderId = await generateOrderId(ctx, args.restaurantId);
 
     const now = Date.now();
 
@@ -61,17 +67,17 @@ export const create = mutation({
       throw new Error('Restaurant not found');
     }
 
-    // Create reservation
-    const id = await ctx.db.insert('reservations', {
+    // Create order
+    const id = await ctx.db.insert('orders', {
       restaurantId: args.restaurantId,
       agentId: args.agentId,
-      reservationId,
+      orderId,
       customerName: args.customerName,
       customerPhone: args.customerPhone,
-      date: args.date,
-      time: args.time,
-      partySize: args.partySize,
-      specialRequests: args.specialRequests,
+      items: args.items,
+      orderNotes: args.orderNotes,
+      pickupTime: args.pickupTime,
+      pickupDate: args.pickupDate,
       status: 'confirmed',
       source: 'phone_agent',
       callId: args.callId,
@@ -138,17 +144,17 @@ export const create = mutation({
 
     // Send email notification to restaurant admins
     // @ts-ignore - Type instantiation depth issue with Convex internal types
-    ctx.scheduler.runAfter(0, internal.notifications.sendReservationNotification, {
-      reservationId: id,
+    ctx.scheduler.runAfter(0, internal.notifications.sendOrderNotification, {
+      orderId: id,
       restaurantId: args.restaurantId,
-      reservationData: {
-        reservationId,
+      orderData: {
+        orderId,
         customerName: args.customerName,
         customerPhone: args.customerPhone,
-        date: args.date,
-        time: args.time,
-        partySize: args.partySize,
-        specialRequests: args.specialRequests,
+        items: args.items,
+        orderNotes: args.orderNotes,
+        pickupTime: args.pickupTime,
+        pickupDate: args.pickupDate,
         source: 'phone_agent',
       },
       restaurantData: {
@@ -163,37 +169,46 @@ export const create = mutation({
 
     return {
       id,
-      reservationId,
+      orderId,
     };
   },
 });
 
 /**
- * Update an existing reservation
+ * Update an existing order
  */
 export const update = mutation({
   args: {
     restaurantId: v.id('restaurants'),
-    reservationId: v.string(),
-    date: v.optional(v.string()),
-    time: v.optional(v.string()),
-    partySize: v.optional(v.number()),
+    orderId: v.string(),
+    items: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          quantity: v.number(),
+          specialInstructions: v.optional(v.string()),
+        })
+      )
+    ),
+    orderNotes: v.optional(v.string()),
+    pickupTime: v.optional(v.string()),
+    pickupDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Find reservation
-    const reservation = await ctx.db
-      .query('reservations')
-      .withIndex('by_reservation_id', (q) =>
-        q.eq('restaurantId', args.restaurantId).eq('reservationId', args.reservationId)
+    // Find order
+    const order = await ctx.db
+      .query('orders')
+      .withIndex('by_order_id', (q) =>
+        q.eq('restaurantId', args.restaurantId).eq('orderId', args.orderId)
       )
       .first();
 
-    if (!reservation) {
-      throw new Error(`Reservation ${args.reservationId} not found`);
+    if (!order) {
+      throw new Error(`Order ${args.orderId} not found`);
     }
 
-    if (reservation.status === 'cancelled') {
-      throw new Error('Cannot modify a cancelled reservation');
+    if (order.status === 'cancelled') {
+      throw new Error('Cannot modify a cancelled order');
     }
 
     const now = Date.now();
@@ -204,24 +219,29 @@ export const update = mutation({
       updatedAt: now,
     };
 
-    if (args.date !== undefined) {
-      changes.date = { from: reservation.date, to: args.date };
-      updates.date = args.date;
+    if (args.items !== undefined) {
+      changes.items = { from: order.items, to: args.items };
+      updates.items = args.items;
     }
 
-    if (args.time !== undefined) {
-      changes.time = { from: reservation.time, to: args.time };
-      updates.time = args.time;
+    if (args.orderNotes !== undefined) {
+      changes.orderNotes = { from: order.orderNotes, to: args.orderNotes };
+      updates.orderNotes = args.orderNotes;
     }
 
-    if (args.partySize !== undefined) {
-      changes.partySize = { from: reservation.partySize, to: args.partySize };
-      updates.partySize = args.partySize;
+    if (args.pickupTime !== undefined) {
+      changes.pickupTime = { from: order.pickupTime, to: args.pickupTime };
+      updates.pickupTime = args.pickupTime;
+    }
+
+    if (args.pickupDate !== undefined) {
+      changes.pickupDate = { from: order.pickupDate, to: args.pickupDate };
+      updates.pickupDate = args.pickupDate;
     }
 
     // Update history
     updates.history = [
-      ...reservation.history,
+      ...order.history,
       {
         action: 'updated',
         timestamp: now,
@@ -230,7 +250,7 @@ export const update = mutation({
       },
     ];
 
-    await ctx.db.patch(reservation._id, updates);
+    await ctx.db.patch(order._id, updates);
 
     // Get restaurant details for email notification
     const restaurant = await ctx.db.get(args.restaurantId);
@@ -243,7 +263,7 @@ export const update = mutation({
         if (organization) {
           const orgOwner = await ctx.db.get(organization.createdBy);
           if (orgOwner?.email) {
-            adminEmails.push(orgOwner?.email);
+            adminEmails.push(orgOwner.email);
           }
         }
 
@@ -277,23 +297,45 @@ export const update = mutation({
         }
       }
 
-      // Get updated reservation data
-      const updatedReservation = await ctx.db.get(reservation._id);
+      // Get updated order data
+      const updatedOrder = await ctx.db.get(order._id);
+
+      // Build changes object for notification
+      const notificationChanges: any = {};
+      if (changes.items) {
+        notificationChanges.items = true;
+      }
+      if (changes.orderNotes) {
+        notificationChanges.orderNotes = true;
+      }
+      if (changes.pickupTime) {
+        notificationChanges.pickupTime = {
+          from: changes.pickupTime.from,
+          to: changes.pickupTime.to,
+        };
+      }
+      if (changes.pickupDate) {
+        notificationChanges.pickupDate = {
+          from: changes.pickupDate.from,
+          to: changes.pickupDate.to,
+        };
+      }
 
       // Send update notification email
       // @ts-ignore - Type instantiation depth issue with Convex internal types
-      ctx.scheduler.runAfter(0, internal.notifications.sendReservationUpdateNotification, {
-        reservationId: reservation._id,
+      ctx.scheduler.runAfter(0, internal.notifications.sendOrderUpdateNotification, {
+        orderId: order._id,
         restaurantId: args.restaurantId,
-        reservationData: {
-          reservationId: reservation.reservationId,
-          customerName: updatedReservation?.customerName || reservation.customerName,
-          customerPhone: updatedReservation?.customerPhone || reservation.customerPhone,
-          date: updatedReservation?.date || reservation.date,
-          time: updatedReservation?.time || reservation.time,
-          partySize: updatedReservation?.partySize || reservation.partySize,
+        orderData: {
+          orderId: order.orderId,
+          customerName: updatedOrder?.customerName || order.customerName,
+          customerPhone: updatedOrder?.customerPhone || order.customerPhone,
+          items: updatedOrder?.items || order.items,
+          orderNotes: updatedOrder?.orderNotes || order.orderNotes,
+          pickupTime: updatedOrder?.pickupTime || order.pickupTime,
+          pickupDate: updatedOrder?.pickupDate || order.pickupDate,
         },
-        changes,
+        changes: notificationChanges,
         restaurantData: {
           name: restaurant.name,
           address: restaurant.location.address,
@@ -307,44 +349,44 @@ export const update = mutation({
 
     return {
       success: true,
-      reservationId: args.reservationId,
+      orderId: args.orderId,
     };
   },
 });
 
 /**
- * Cancel a reservation
+ * Cancel an order
  */
 export const cancel = mutation({
   args: {
     restaurantId: v.id('restaurants'),
-    reservationId: v.string(),
+    orderId: v.string(),
   },
   handler: async (ctx, args) => {
-    // Find reservation
-    const reservation = await ctx.db
-      .query('reservations')
-      .withIndex('by_reservation_id', (q) =>
-        q.eq('restaurantId', args.restaurantId).eq('reservationId', args.reservationId)
+    // Find order
+    const order = await ctx.db
+      .query('orders')
+      .withIndex('by_order_id', (q) =>
+        q.eq('restaurantId', args.restaurantId).eq('orderId', args.orderId)
       )
       .first();
 
-    if (!reservation) {
-      throw new Error(`Reservation ${args.reservationId} not found`);
+    if (!order) {
+      throw new Error(`Order ${args.orderId} not found`);
     }
 
-    if (reservation.status === 'cancelled') {
-      throw new Error('Reservation is already cancelled');
+    if (order.status === 'cancelled') {
+      throw new Error('Order is already cancelled');
     }
 
     const now = Date.now();
 
-    await ctx.db.patch(reservation._id, {
+    await ctx.db.patch(order._id, {
       status: 'cancelled',
       cancelledAt: now,
       updatedAt: now,
       history: [
-        ...reservation.history,
+        ...order.history,
         {
           action: 'cancelled',
           timestamp: now,
@@ -400,16 +442,19 @@ export const cancel = mutation({
 
       // Send cancellation notification email
       // @ts-ignore - Type instantiation depth issue with Convex internal types
-      ctx.scheduler.runAfter(0, internal.notifications.sendReservationCancellationNotification, {
-        reservationId: reservation._id,
+      ctx.scheduler.runAfter(0, internal.notifications.sendOrderCancellationNotification, {
+        orderId: order._id,
         restaurantId: args.restaurantId,
-        reservationData: {
-          reservationId: reservation.reservationId,
-          customerName: reservation.customerName,
-          customerPhone: reservation.customerPhone,
-          date: reservation.date,
-          time: reservation.time,
-          partySize: reservation.partySize,
+        orderData: {
+          orderId: order.orderId,
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          items: order.items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+          })),
+          pickupTime: order.pickupTime,
+          pickupDate: order.pickupDate,
         },
         restaurantData: {
           name: restaurant.name,
@@ -424,13 +469,13 @@ export const cancel = mutation({
 
     return {
       success: true,
-      reservationId: args.reservationId,
+      orderId: args.orderId,
     };
   },
 });
 
 /**
- * Get all reservations for a restaurant
+ * Get all orders for a restaurant
  */
 export const listByRestaurant = query({
   args: {
@@ -438,34 +483,39 @@ export const listByRestaurant = query({
     status: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let reservations;
+    let orders;
 
     if (args.status) {
       const status = args.status;
-      reservations = await ctx.db
-        .query('reservations')
+      orders = await ctx.db
+        .query('orders')
         .withIndex('by_restaurant_status', (q) =>
           q.eq('restaurantId', args.restaurantId).eq('status', status)
         )
         .collect();
     } else {
-      reservations = await ctx.db
-        .query('reservations')
+      orders = await ctx.db
+        .query('orders')
         .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
         .collect();
     }
 
-    return reservations.sort((a, b) => {
-      // Sort by date, then time
-      const dateCompare = a.date.localeCompare(b.date);
+    return orders.sort((a, b) => {
+      // Sort by pickup date, then pickup time
+      const dateA = a.pickupDate || '';
+      const dateB = b.pickupDate || '';
+      const dateCompare = dateB.localeCompare(dateA); // Most recent first
       if (dateCompare !== 0) return dateCompare;
-      return a.time.localeCompare(b.time);
+
+      const timeA = a.pickupTime || '';
+      const timeB = b.pickupTime || '';
+      return timeB.localeCompare(timeA);
     });
   },
 });
 
 /**
- * Get reservations by date range
+ * Get orders by date range
  */
 export const listByDateRange = query({
   args: {
@@ -474,51 +524,65 @@ export const listByDateRange = query({
     endDate: v.string(),
   },
   handler: async (ctx, args) => {
-    const reservations = await ctx.db
-      .query('reservations')
+    const orders = await ctx.db
+      .query('orders')
       .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
       .collect();
 
-    return reservations
-      .filter((r) => r.date >= args.startDate && r.date <= args.endDate)
+    return orders
+      .filter((o) => {
+        const pickupDate = o.pickupDate || '';
+        return pickupDate >= args.startDate && pickupDate <= args.endDate;
+      })
       .sort((a, b) => {
-        const dateCompare = a.date.localeCompare(b.date);
+        const dateA = a.pickupDate || '';
+        const dateB = b.pickupDate || '';
+        const dateCompare = dateB.localeCompare(dateA); // Most recent first
         if (dateCompare !== 0) return dateCompare;
-        return a.time.localeCompare(b.time);
+
+        const timeA = a.pickupTime || '';
+        const timeB = b.pickupTime || '';
+        return timeB.localeCompare(timeA);
       });
   },
 });
 
 /**
- * Get a single reservation by ID
+ * Get a single order by ID
  */
-export const getByReservationId = query({
+export const getByOrderId = query({
   args: {
     restaurantId: v.id('restaurants'),
-    reservationId: v.string(),
+    orderId: v.string(),
   },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query('reservations')
-      .withIndex('by_reservation_id', (q) =>
-        q.eq('restaurantId', args.restaurantId).eq('reservationId', args.reservationId)
+      .query('orders')
+      .withIndex('by_order_id', (q) =>
+        q.eq('restaurantId', args.restaurantId).eq('orderId', args.orderId)
       )
       .first();
   },
 });
 
 /**
- * Create a new reservation manually (from dashboard)
+ * Create a new order manually (from dashboard)
  */
 export const createManual = mutation({
   args: {
     restaurantId: v.id('restaurants'),
     customerName: v.string(),
-    date: v.string(),
-    time: v.string(),
-    partySize: v.number(),
-    customerPhone: v.optional(v.string()),
-    specialRequests: v.optional(v.string()),
+    customerPhone: v.string(),
+    items: v.array(
+      v.object({
+        name: v.string(),
+        quantity: v.number(),
+        specialInstructions: v.optional(v.string()),
+      })
+    ),
+    orderNotes: v.optional(v.string()),
+    pickupTime: v.optional(v.string()),
+    pickupDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get user identity
@@ -527,8 +591,8 @@ export const createManual = mutation({
       throw new Error('Unauthorized');
     }
 
-    // Generate unique reservation ID
-    const reservationId = await generateReservationId(ctx, args.restaurantId);
+    // Generate unique order ID
+    const orderId = await generateOrderId(ctx, args.restaurantId);
 
     const now = Date.now();
 
@@ -538,16 +602,16 @@ export const createManual = mutation({
       throw new Error('Restaurant not found');
     }
 
-    // Create reservation
-    const id = await ctx.db.insert('reservations', {
+    // Create order
+    const id = await ctx.db.insert('orders', {
       restaurantId: args.restaurantId,
-      reservationId,
+      orderId,
       customerName: args.customerName,
       customerPhone: args.customerPhone,
-      date: args.date,
-      time: args.time,
-      partySize: args.partySize,
-      specialRequests: args.specialRequests,
+      items: args.items,
+      orderNotes: args.orderNotes,
+      pickupTime: args.pickupTime,
+      pickupDate: args.pickupDate,
       status: 'confirmed',
       source: 'manual',
       history: [
@@ -612,17 +676,17 @@ export const createManual = mutation({
 
     // Send email notification to restaurant admins
     // @ts-ignore - Type instantiation depth issue with Convex internal types
-    ctx.scheduler.runAfter(0, internal.notifications.sendReservationNotification, {
-      reservationId: id,
+    ctx.scheduler.runAfter(0, internal.notifications.sendOrderNotification, {
+      orderId: id,
       restaurantId: args.restaurantId,
-      reservationData: {
-        reservationId,
+      orderData: {
+        orderId,
         customerName: args.customerName,
         customerPhone: args.customerPhone,
-        date: args.date,
-        time: args.time,
-        partySize: args.partySize,
-        specialRequests: args.specialRequests,
+        items: args.items,
+        orderNotes: args.orderNotes,
+        pickupTime: args.pickupTime,
+        pickupDate: args.pickupDate,
         source: 'manual',
       },
       restaurantData: {
@@ -637,23 +701,31 @@ export const createManual = mutation({
 
     return {
       id,
-      reservationId,
+      orderId,
     };
   },
 });
 
 /**
- * Update an existing reservation manually (from dashboard)
+ * Update an existing order manually (from dashboard)
  */
 export const updateManual = mutation({
   args: {
-    id: v.id('reservations'),
+    id: v.id('orders'),
     customerName: v.optional(v.string()),
-    date: v.optional(v.string()),
-    time: v.optional(v.string()),
-    partySize: v.optional(v.number()),
     customerPhone: v.optional(v.string()),
-    specialRequests: v.optional(v.string()),
+    items: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          quantity: v.number(),
+          specialInstructions: v.optional(v.string()),
+        })
+      )
+    ),
+    orderNotes: v.optional(v.string()),
+    pickupTime: v.optional(v.string()),
+    pickupDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get user identity
@@ -662,15 +734,15 @@ export const updateManual = mutation({
       throw new Error('Unauthorized');
     }
 
-    // Find reservation
-    const reservation = await ctx.db.get(args.id);
+    // Find order
+    const order = await ctx.db.get(args.id);
 
-    if (!reservation) {
-      throw new Error('Reservation not found');
+    if (!order) {
+      throw new Error('Order not found');
     }
 
-    if (reservation.status === 'cancelled') {
-      throw new Error('Cannot modify a cancelled reservation');
+    if (order.status === 'cancelled') {
+      throw new Error('Cannot modify a cancelled order');
     }
 
     const now = Date.now();
@@ -682,38 +754,38 @@ export const updateManual = mutation({
     };
 
     if (args.customerName !== undefined) {
-      changes.customerName = { from: reservation.customerName, to: args.customerName };
+      changes.customerName = { from: order.customerName, to: args.customerName };
       updates.customerName = args.customerName;
     }
 
-    if (args.date !== undefined) {
-      changes.date = { from: reservation.date, to: args.date };
-      updates.date = args.date;
-    }
-
-    if (args.time !== undefined) {
-      changes.time = { from: reservation.time, to: args.time };
-      updates.time = args.time;
-    }
-
-    if (args.partySize !== undefined) {
-      changes.partySize = { from: reservation.partySize, to: args.partySize };
-      updates.partySize = args.partySize;
-    }
-
     if (args.customerPhone !== undefined) {
-      changes.customerPhone = { from: reservation.customerPhone, to: args.customerPhone };
+      changes.customerPhone = { from: order.customerPhone, to: args.customerPhone };
       updates.customerPhone = args.customerPhone;
     }
 
-    if (args.specialRequests !== undefined) {
-      changes.specialRequests = { from: reservation.specialRequests, to: args.specialRequests };
-      updates.specialRequests = args.specialRequests;
+    if (args.items !== undefined) {
+      changes.items = { from: order.items, to: args.items };
+      updates.items = args.items;
+    }
+
+    if (args.orderNotes !== undefined) {
+      changes.orderNotes = { from: order.orderNotes, to: args.orderNotes };
+      updates.orderNotes = args.orderNotes;
+    }
+
+    if (args.pickupTime !== undefined) {
+      changes.pickupTime = { from: order.pickupTime, to: args.pickupTime };
+      updates.pickupTime = args.pickupTime;
+    }
+
+    if (args.pickupDate !== undefined) {
+      changes.pickupDate = { from: order.pickupDate, to: args.pickupDate };
+      updates.pickupDate = args.pickupDate;
     }
 
     // Update history
     updates.history = [
-      ...reservation.history,
+      ...order.history,
       {
         action: 'updated',
         timestamp: now,
@@ -722,21 +794,21 @@ export const updateManual = mutation({
       },
     ];
 
-    await ctx.db.patch(reservation._id, updates);
+    await ctx.db.patch(order._id, updates);
 
     return {
       success: true,
-      reservationId: reservation.reservationId,
+      orderId: order.orderId,
     };
   },
 });
 
 /**
- * Delete a reservation permanently (from dashboard)
+ * Delete an order permanently (from dashboard)
  */
-export const deleteReservation = mutation({
+export const deleteOrder = mutation({
   args: {
-    id: v.id('reservations'),
+    id: v.id('orders'),
   },
   handler: async (ctx, args) => {
     // Get user identity
@@ -745,7 +817,7 @@ export const deleteReservation = mutation({
       throw new Error('Unauthorized');
     }
 
-    // Delete the reservation
+    // Delete the order
     await ctx.db.delete(args.id);
 
     return {
@@ -755,53 +827,58 @@ export const deleteReservation = mutation({
 });
 
 /**
- * Search for reservations by name, date, and/or phone (for agent use)
+ * Search for orders by name, date, and/or phone (for agent use)
  */
-export const searchReservations = query({
+export const searchOrders = query({
   args: {
     restaurantId: v.id('restaurants'),
     customerName: v.optional(v.string()),
-    date: v.optional(v.string()),
+    pickupDate: v.optional(v.string()),
     customerPhone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Get all reservations for the restaurant
-    const allReservations = await ctx.db
-      .query('reservations')
+    // Get all orders for the restaurant
+    const allOrders = await ctx.db
+      .query('orders')
       .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
       .collect();
 
     // Filter based on search criteria
-    let results = allReservations;
+    let results = allOrders;
 
     // Filter by customer name (case-insensitive partial match)
     if (args.customerName) {
       const searchName = args.customerName.toLowerCase().trim();
-      results = results.filter((r) =>
-        r.customerName.toLowerCase().includes(searchName)
+      results = results.filter((o) =>
+        o.customerName.toLowerCase().includes(searchName)
       );
     }
 
-    // Filter by date (exact match)
-    if (args.date) {
-      results = results.filter((r) => r.date === args.date);
+    // Filter by pickup date (exact match)
+    if (args.pickupDate) {
+      results = results.filter((o) => o.pickupDate === args.pickupDate);
     }
 
     // Filter by phone (partial match)
     if (args.customerPhone) {
       const searchPhone = args.customerPhone.replace(/\D/g, ''); // Remove non-digits
-      results = results.filter((r) => {
-        if (!r.customerPhone) return false;
-        const normalizedPhone = r.customerPhone.replace(/\D/g, '');
+      results = results.filter((o) => {
+        if (!o.customerPhone) return false;
+        const normalizedPhone = o.customerPhone.replace(/\D/g, '');
         return normalizedPhone.includes(searchPhone);
       });
     }
 
-    // Sort by date and time (most recent first)
+    // Sort by pickup date and time (most recent first)
     results.sort((a, b) => {
-      const dateCompare = b.date.localeCompare(a.date);
+      const dateA = a.pickupDate || '';
+      const dateB = b.pickupDate || '';
+      const dateCompare = dateB.localeCompare(dateA);
       if (dateCompare !== 0) return dateCompare;
-      return b.time.localeCompare(a.time);
+
+      const timeA = a.pickupTime || '';
+      const timeB = b.pickupTime || '';
+      return timeB.localeCompare(timeA);
     });
 
     // Limit to 10 results to avoid overwhelming the agent
@@ -810,11 +887,11 @@ export const searchReservations = query({
 });
 
 /**
- * Get a single reservation by its internal ID (for notifications)
+ * Get a single order by its internal ID (for notifications)
  */
 export const getById = query({
   args: {
-    id: v.id('reservations'),
+    id: v.id('orders'),
   },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);

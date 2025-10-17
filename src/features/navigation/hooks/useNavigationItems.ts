@@ -1,5 +1,5 @@
 import { useOrganization, useUser } from '@clerk/nextjs';
-import { LayoutDashboard, Store, Calendar, BarChart3, Bot, Settings } from 'lucide-react';
+import { LayoutDashboard, Store, Calendar, BarChart3, Bot, Settings, ShoppingBag } from 'lucide-react';
 import { useUserRestaurantAccess } from '@/features/restaurants/hooks/useRestaurantAccess';
 import { Id } from '../../../../convex/_generated/dataModel';
 
@@ -30,6 +30,12 @@ const allRestaurantNavItems = [
     href: (id: string) => `/dashboard/${id}/reservations`,
     icon: Calendar,
     permission: 'reservation:view'
+  },
+  {
+    name: 'Orders',
+    href: (id: string) => `/dashboard/${id}/orders`,
+    icon: ShoppingBag,
+    permission: 'reservation:view' // Using same permission as reservations for now
   },
   {
     name: 'Configure',
