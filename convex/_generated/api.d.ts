@@ -19,6 +19,7 @@ import type * as migrations_runMigration from "../migrations/runMigration.js";
 import type * as migrations_updateRestaurantAccessPermissions from "../migrations/updateRestaurantAccessPermissions.js";
 import type * as migrations from "../migrations.js";
 import type * as notifications from "../notifications.js";
+import type * as orders from "../orders.js";
 import type * as organizations from "../organizations.js";
 import type * as permissions from "../permissions.js";
 import type * as reservations from "../reservations.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/updateRestaurantAccessPermissions": typeof migrations_updateRestaurantAccessPermissions;
   migrations: typeof migrations;
   notifications: typeof notifications;
+  orders: typeof orders;
   organizations: typeof organizations;
   permissions: typeof permissions;
   reservations: typeof reservations;

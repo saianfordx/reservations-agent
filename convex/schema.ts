@@ -306,4 +306,64 @@ export default defineSchema({
     .index('by_agent', ['agentId'])
     .index('by_customer_phone', ['customerPhone'])
     .index('by_status', ['status']),
+
+  // ============================================
+  // TO-GO ORDERS
+  // ============================================
+
+  orders: defineTable({
+    restaurantId: v.id('restaurants'),
+    agentId: v.optional(v.id('agents')), // Optional for manual orders
+
+    // Order ID (4-digit, unique per restaurant)
+    orderId: v.string(),
+
+    // Customer Information (required)
+    customerName: v.string(),
+    customerPhone: v.string(), // Required for to-go orders
+
+    // Order Details
+    items: v.array(
+      v.object({
+        name: v.string(),
+        quantity: v.number(),
+        specialInstructions: v.optional(v.string()),
+      })
+    ),
+    orderNotes: v.optional(v.string()),
+
+    // Pickup Information
+    pickupTime: v.optional(v.string()), // HH:MM (24-hour)
+    pickupDate: v.optional(v.string()), // YYYY-MM-DD (defaults to today if not specified)
+
+    // Status Management
+    status: v.string(), // pending, confirmed, preparing, ready, completed, cancelled
+    source: v.string(), // phone_agent, manual, online
+
+    // Conversation Reference
+    callId: v.optional(v.string()),
+    conversationTranscript: v.optional(v.string()),
+
+    // Change History
+    history: v.array(
+      v.object({
+        action: v.string(),
+        timestamp: v.number(),
+        changes: v.optional(v.any()),
+        modifiedBy: v.optional(v.string()),
+      })
+    ),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    cancelledAt: v.optional(v.number()),
+  })
+    .index('by_restaurant', ['restaurantId'])
+    .index('by_restaurant_date', ['restaurantId', 'pickupDate'])
+    .index('by_restaurant_status', ['restaurantId', 'status'])
+    .index('by_order_id', ['restaurantId', 'orderId'])
+    .index('by_agent', ['agentId'])
+    .index('by_customer_phone', ['customerPhone'])
+    .index('by_status', ['status']),
 });
