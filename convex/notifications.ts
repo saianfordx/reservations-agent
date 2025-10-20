@@ -3,6 +3,12 @@ import { internalAction, query } from './_generated/server';
 import { Resend } from 'resend';
 
 /**
+ * Helper function to delay execution (for rate limiting)
+ * Resend allows 2 requests per second, so we wait 600ms between sends
+ */
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Get admin emails for a restaurant (public query)
  * Returns: organization owner + restaurant managers
  */
@@ -177,11 +183,14 @@ export const sendReservationNotification = internalAction({
     try {
       console.log('Attempting to send emails to:', adminEmails);
 
-      // Send individual emails to each recipient
-      const emailPromises = adminEmails.map(async (email) => {
-        console.log(`Sending email to: ${email}`);
+      // Send emails sequentially to respect rate limits (2 per second)
+      const results = [];
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+        console.log(`Sending email to: ${email} (${i + 1}/${adminEmails.length})`);
+
         const { data, error } = await resend.emails.send({
-          from: 'Reservations <onboarding@resend.dev>',
+          from: 'Reservations <reservations@updates.nerdvi.ai>',
           to: email,
           subject: `New Reservation - ${restaurantData.name} - ${formattedDate}`,
           html: emailHtml,
@@ -189,15 +198,17 @@ export const sendReservationNotification = internalAction({
 
         if (error) {
           console.error(`Error sending email to ${email}:`, error);
-          return { success: false, email, error: error.message };
+          results.push({ success: false, email, error: error.message });
+        } else {
+          console.log(`Email sent successfully to ${email}, ID: ${data?.id}`);
+          results.push({ success: true, email, emailId: data?.id });
         }
 
-        console.log(`Email sent successfully to ${email}, ID: ${data?.id}`);
-        return { success: true, email, emailId: data?.id };
-      });
-
-      // Wait for all emails to be sent
-      const results = await Promise.all(emailPromises);
+        // Wait 600ms before sending the next email (to stay under 2 requests/second)
+        if (i < adminEmails.length - 1) {
+          await delay(600);
+        }
+      }
 
       // Check if any failed
       const failures = results.filter(r => !r.success);
@@ -322,9 +333,14 @@ export const sendReservationCancellationNotification = internalAction({
     `;
 
     try {
-      const emailPromises = adminEmails.map(async (email) => {
+      // Send emails sequentially to respect rate limits (2 per second)
+      const results = [];
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+        console.log(`Sending cancellation email to: ${email} (${i + 1}/${adminEmails.length})`);
+
         const { data, error } = await resend.emails.send({
-          from: 'Reservations <onboarding@resend.dev>',
+          from: 'Reservations <reservations@updates.nerdvi.ai>',
           to: email,
           subject: `Reservation Cancelled - ${restaurantData.name} - ${formattedDate}`,
           html: emailHtml,
@@ -332,14 +348,20 @@ export const sendReservationCancellationNotification = internalAction({
 
         if (error) {
           console.error(`Error sending cancellation email to ${email}:`, error);
-          return { success: false, email, error: error.message };
+          results.push({ success: false, email, error: error.message });
+        } else {
+          console.log(`Cancellation email sent successfully to ${email}, ID: ${data?.id}`);
+          results.push({ success: true, email, emailId: data?.id });
         }
 
-        return { success: true, email, emailId: data?.id };
-      });
+        // Wait 600ms before sending the next email (to stay under 2 requests/second)
+        if (i < adminEmails.length - 1) {
+          await delay(600);
+        }
+      }
 
-      const results = await Promise.all(emailPromises);
       const successCount = results.filter(r => r.success).length;
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} cancellation emails`);
 
       return {
         success: successCount > 0,
@@ -497,9 +519,14 @@ export const sendReservationUpdateNotification = internalAction({
     `;
 
     try {
-      const emailPromises = adminEmails.map(async (email) => {
+      // Send emails sequentially to respect rate limits (2 per second)
+      const results = [];
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+        console.log(`Sending update email to: ${email} (${i + 1}/${adminEmails.length})`);
+
         const { data, error } = await resend.emails.send({
-          from: 'Reservations <onboarding@resend.dev>',
+          from: 'Reservations <reservations@updates.nerdvi.ai>',
           to: email,
           subject: `Reservation Updated - ${restaurantData.name} - ${formattedDate}`,
           html: emailHtml,
@@ -507,14 +534,20 @@ export const sendReservationUpdateNotification = internalAction({
 
         if (error) {
           console.error(`Error sending update email to ${email}:`, error);
-          return { success: false, email, error: error.message };
+          results.push({ success: false, email, error: error.message });
+        } else {
+          console.log(`Update email sent successfully to ${email}, ID: ${data?.id}`);
+          results.push({ success: true, email, emailId: data?.id });
         }
 
-        return { success: true, email, emailId: data?.id };
-      });
+        // Wait 600ms before sending the next email (to stay under 2 requests/second)
+        if (i < adminEmails.length - 1) {
+          await delay(600);
+        }
+      }
 
-      const results = await Promise.all(emailPromises);
       const successCount = results.filter(r => r.success).length;
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} update emails`);
 
       return {
         success: successCount > 0,
@@ -672,27 +705,32 @@ export const sendOrderNotification = internalAction({
     try {
       console.log('Attempting to send order emails to:', adminEmails);
 
-      // Send individual emails to each recipient
-      const emailPromises = adminEmails.map(async (email) => {
-        console.log(`Sending order email to: ${email}`);
+      // Send emails sequentially to respect rate limits (2 per second)
+      const results = [];
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+        console.log(`Sending order email to: ${email} (${i + 1}/${adminEmails.length})`);
+
         const { data, error } = await resend.emails.send({
-          from: 'Orders <onboarding@resend.dev>',
+          from: 'Orders <orders@updates.nerdvi.ai>',
           to: email,
           subject: `New To-Go Order - ${restaurantData.name} - ${formattedPickupDate}`,
           html: emailHtml,
         });
 
         if (error) {
-          console.error(`Error sending email to ${email}:`, error);
-          return { success: false, email, error: error.message };
+          console.error(`Error sending order email to ${email}:`, error);
+          results.push({ success: false, email, error: error.message });
+        } else {
+          console.log(`Order email sent successfully to ${email}, ID: ${data?.id}`);
+          results.push({ success: true, email, emailId: data?.id });
         }
 
-        console.log(`Order email sent successfully to ${email}, ID: ${data?.id}`);
-        return { success: true, email, emailId: data?.id };
-      });
-
-      // Wait for all emails to be sent
-      const results = await Promise.all(emailPromises);
+        // Wait 600ms before sending the next email (to stay under 2 requests/second)
+        if (i < adminEmails.length - 1) {
+          await delay(600);
+        }
+      }
 
       // Check if any failed
       const failures = results.filter(r => !r.success);
@@ -835,9 +873,14 @@ export const sendOrderCancellationNotification = internalAction({
     `;
 
     try {
-      const emailPromises = adminEmails.map(async (email) => {
+      // Send emails sequentially to respect rate limits (2 per second)
+      const results = [];
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+        console.log(`Sending order cancellation email to: ${email} (${i + 1}/${adminEmails.length})`);
+
         const { data, error } = await resend.emails.send({
-          from: 'Orders <onboarding@resend.dev>',
+          from: 'Orders <orders@updates.nerdvi.ai>',
           to: email,
           subject: `Order Cancelled - ${restaurantData.name} - ${formattedPickupDate}`,
           html: emailHtml,
@@ -845,14 +888,20 @@ export const sendOrderCancellationNotification = internalAction({
 
         if (error) {
           console.error(`Error sending order cancellation email to ${email}:`, error);
-          return { success: false, email, error: error.message };
+          results.push({ success: false, email, error: error.message });
+        } else {
+          console.log(`Order cancellation email sent successfully to ${email}, ID: ${data?.id}`);
+          results.push({ success: true, email, emailId: data?.id });
         }
 
-        return { success: true, email, emailId: data?.id };
-      });
+        // Wait 600ms before sending the next email (to stay under 2 requests/second)
+        if (i < adminEmails.length - 1) {
+          await delay(600);
+        }
+      }
 
-      const results = await Promise.all(emailPromises);
       const successCount = results.filter(r => r.success).length;
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} order cancellation emails`);
 
       return {
         success: successCount > 0,
@@ -1047,9 +1096,14 @@ export const sendOrderUpdateNotification = internalAction({
     `;
 
     try {
-      const emailPromises = adminEmails.map(async (email) => {
+      // Send emails sequentially to respect rate limits (2 per second)
+      const results = [];
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+        console.log(`Sending order update email to: ${email} (${i + 1}/${adminEmails.length})`);
+
         const { data, error } = await resend.emails.send({
-          from: 'Orders <onboarding@resend.dev>',
+          from: 'Orders <orders@updates.nerdvi.ai>',
           to: email,
           subject: `Order Updated - ${restaurantData.name} - ${formattedPickupDate}`,
           html: emailHtml,
@@ -1057,14 +1111,20 @@ export const sendOrderUpdateNotification = internalAction({
 
         if (error) {
           console.error(`Error sending order update email to ${email}:`, error);
-          return { success: false, email, error: error.message };
+          results.push({ success: false, email, error: error.message });
+        } else {
+          console.log(`Order update email sent successfully to ${email}, ID: ${data?.id}`);
+          results.push({ success: true, email, emailId: data?.id });
         }
 
-        return { success: true, email, emailId: data?.id };
-      });
+        // Wait 600ms before sending the next email (to stay under 2 requests/second)
+        if (i < adminEmails.length - 1) {
+          await delay(600);
+        }
+      }
 
-      const results = await Promise.all(emailPromises);
       const successCount = results.filter(r => r.success).length;
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} order update emails`);
 
       return {
         success: successCount > 0,
