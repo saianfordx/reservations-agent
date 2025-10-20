@@ -173,7 +173,8 @@ export const sendReservationNotification = internalAction({
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
             <p style="margin: 0; color: #6c757d; font-size: 12px;">
-              This is an automated notification from your reservation system.
+              This is an automated notification from your reservation system.<br>
+              You're receiving this because you manage ${restaurantData.name}.
             </p>
           </div>
         </body>
@@ -325,7 +326,8 @@ export const sendReservationCancellationNotification = internalAction({
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
             <p style="margin: 0; color: #6c757d; font-size: 12px;">
-              This is an automated notification from your reservation system.
+              This is an automated notification from your reservation system.<br>
+              You're receiving this because you manage ${restaurantData.name}.
             </p>
           </div>
         </body>
@@ -511,7 +513,8 @@ export const sendReservationUpdateNotification = internalAction({
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
             <p style="margin: 0; color: #6c757d; font-size: 12px;">
-              This is an automated notification from your reservation system.
+              This is an automated notification from your reservation system.<br>
+              You're receiving this because you manage ${restaurantData.name}.
             </p>
           </div>
         </body>
@@ -695,7 +698,8 @@ export const sendOrderNotification = internalAction({
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
             <p style="margin: 0; color: #6c757d; font-size: 12px;">
-              This is an automated notification from your restaurant system.
+              This is an automated notification from your restaurant system.<br>
+              You're receiving this because you manage ${restaurantData.name}.
             </p>
           </div>
         </body>
@@ -865,7 +869,8 @@ export const sendOrderCancellationNotification = internalAction({
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
             <p style="margin: 0; color: #6c757d; font-size: 12px;">
-              This is an automated notification from your restaurant system.
+              This is an automated notification from your restaurant system.<br>
+              You're receiving this because you manage ${restaurantData.name}.
             </p>
           </div>
         </body>
@@ -1088,7 +1093,8 @@ export const sendOrderUpdateNotification = internalAction({
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
             <p style="margin: 0; color: #6c757d; font-size: 12px;">
-              This is an automated notification from your restaurant system.
+              This is an automated notification from your restaurant system.<br>
+              You're receiving this because you manage ${restaurantData.name}.
             </p>
           </div>
         </body>

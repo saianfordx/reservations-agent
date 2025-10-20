@@ -7,9 +7,11 @@ import { Id } from '../../../../../../../convex/_generated/dataModel';
  * Webhook endpoint for ElevenLabs agent to edit orders
  */
 export async function POST(req: NextRequest) {
+  let order_id: string | undefined;
   try {
     const body = await req.json();
-    const { order_id, items, order_notes, pickup_time, pickup_date } = body;
+    order_id = body.order_id;
+    const { items, order_notes, pickup_time, pickup_date } = body;
 
     // Get restaurant ID from query params
     const { searchParams } = new URL(req.url);
@@ -105,7 +107,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build confirmation message
-    let changes: string[] = [];
+    const changes: string[] = [];
     if (items !== undefined) changes.push('items');
     if (order_notes !== undefined) changes.push('order notes');
     if (pickup_time !== undefined) changes.push('pickup time');
@@ -122,24 +124,25 @@ export async function POST(req: NextRequest) {
       pickup_time,
       pickup_date,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error editing order:', error);
+    const errorMessage = error instanceof Error ? error.message : '';
 
-    if (error.message?.includes('not found')) {
+    if (errorMessage.includes('not found')) {
       return NextResponse.json(
         {
           success: false,
-          message: `I could not find order ${body.order_id}. Please double-check the order ID.`,
+          message: `I could not find order ${order_id}. Please double-check the order ID.`,
         },
         { status: 404 }
       );
     }
 
-    if (error.message?.includes('cancelled')) {
+    if (errorMessage.includes('cancelled')) {
       return NextResponse.json(
         {
           success: false,
-          message: `Order ${body.order_id} has been cancelled and cannot be modified.`,
+          message: `Order ${order_id} has been cancelled and cannot be modified.`,
         },
         { status: 400 }
       );

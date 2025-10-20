@@ -3,6 +3,33 @@ import { getConvexClient } from '@/lib/convex-client';
 import { api } from '../../../../../../../convex/_generated/api';
 import { Id } from '../../../../../../../convex/_generated/dataModel';
 
+type OrderItem = {
+  name: string;
+  quantity: number;
+  specialInstructions?: string;
+};
+
+type OrderSearchResult = {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  items: OrderItem[];
+  pickupTime?: string;
+  pickupDate?: string;
+  status: string;
+  orderNotes?: string;
+};
+
+type FormattedOrder = {
+  order_id: string;
+  customer_name: string;
+  customer_phone: string;
+  items: OrderItem[];
+  pickup_info: string;
+  status: string;
+  notes?: string;
+};
+
 /**
  * Webhook endpoint for ElevenLabs agent to search for orders
  */
@@ -58,8 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Format orders for response
-    const formattedOrders = orders.map((order: any) => {
-      const itemsList = order.items.map((item: any) => `${item.quantity} ${item.name}`).join(', ');
+    const formattedOrders: FormattedOrder[] = (orders as OrderSearchResult[]).map((order) => {
       const pickupInfo = order.pickupTime
         ? `${order.pickupTime}${order.pickupDate ? ` on ${order.pickupDate}` : ''}`
         : order.pickupDate || 'ASAP';
@@ -79,15 +105,15 @@ export async function POST(req: NextRequest) {
     let message = '';
     if (formattedOrders.length === 1) {
       const order = formattedOrders[0];
-      const itemsList = order.items.map((item: any) => `${item.quantity} ${item.name}`).join(', ');
+      const itemsList = order.items.map((item) => `${item.quantity} ${item.name}`).join(', ');
       message = `I found your order. Order ID ${order.order_id} for ${order.customer_name} (${order.customer_phone}). Items: ${itemsList}. Pickup: ${order.pickup_info}. Status: ${order.status}.`;
       if (order.status === 'cancelled') {
         message += ' This order has been cancelled.';
       }
     } else {
       message = `I found ${formattedOrders.length} orders matching your search. `;
-      formattedOrders.forEach((order: any, index: number) => {
-        const itemsList = order.items.map((item: any) => `${item.quantity} ${item.name}`).join(', ');
+      formattedOrders.forEach((order, index: number) => {
+        const itemsList = order.items.map((item) => `${item.quantity} ${item.name}`).join(', ');
         message += `Order ${index + 1}: ID ${order.order_id} for ${order.customer_name}. Items: ${itemsList}. Pickup: ${order.pickup_info}. `;
       });
     }

@@ -3,6 +3,12 @@ import { getConvexClient } from '@/lib/convex-client';
 import { api } from '../../../../../../../convex/_generated/api';
 import { Id } from '../../../../../../../convex/_generated/dataModel';
 
+type OrderItem = {
+  name: string;
+  quantity: number;
+  specialInstructions?: string;
+};
+
 /**
  * Webhook endpoint for ElevenLabs agent to create to-go orders
  */
@@ -107,7 +113,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Build confirmation message
-    const itemsList = items.map((item: any) => `${item.quantity} ${item.name}`).join(', ');
+    const itemsList = (items as OrderItem[]).map((item) => `${item.quantity} ${item.name}`).join(', ');
     const pickupInfo = pickup_time
       ? `at ${pickup_time}${pickup_date ? ` on ${pickup_date}` : ''}`
       : pickup_date
