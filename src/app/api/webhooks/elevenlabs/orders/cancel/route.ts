@@ -7,9 +7,10 @@ import { Id } from '../../../../../../../convex/_generated/dataModel';
  * Webhook endpoint for ElevenLabs agent to cancel orders
  */
 export async function POST(req: NextRequest) {
+  let order_id: string | undefined;
   try {
     const body = await req.json();
-    const { order_id } = body;
+    order_id = body.order_id;
 
     // Get restaurant ID from query params
     const { searchParams } = new URL(req.url);
@@ -59,24 +60,25 @@ export async function POST(req: NextRequest) {
       message: `Your order ${order_id} has been successfully cancelled. If you have any questions, please feel free to call us.`,
       order_id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error cancelling order:', error);
+    const errorMessage = error instanceof Error ? error.message : '';
 
-    if (error.message?.includes('not found')) {
+    if (errorMessage.includes('not found')) {
       return NextResponse.json(
         {
           success: false,
-          message: `I could not find order ${body.order_id}. Please double-check the order ID.`,
+          message: `I could not find order ${order_id}. Please double-check the order ID.`,
         },
         { status: 404 }
       );
     }
 
-    if (error.message?.includes('already cancelled')) {
+    if (errorMessage.includes('already cancelled')) {
       return NextResponse.json(
         {
           success: false,
-          message: `Order ${body.order_id} has already been cancelled.`,
+          message: `Order ${order_id} has already been cancelled.`,
         },
         { status: 400 }
       );
