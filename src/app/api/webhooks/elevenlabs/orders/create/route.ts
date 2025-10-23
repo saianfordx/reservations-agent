@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Transform items to match Convex schema (special_instructions -> specialInstructions)
-    const transformedItems = items.map((item: any) => ({
+    const transformedItems = items.map((item: OrderItem) => ({
       name: item.name,
       quantity: item.quantity,
       specialInstructions: item.special_instructions || item.specialInstructions,
