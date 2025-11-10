@@ -6,7 +6,8 @@ import { Id } from '../../../../../../../convex/_generated/dataModel';
 type OrderItem = {
   name: string;
   quantity: number;
-  specialInstructions?: string;
+  special_instructions?: string;  // From ElevenLabs (snake_case)
+  specialInstructions?: string;   // For Convex (camelCase)
 };
 
 /**
@@ -100,20 +101,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Transform items to match Convex schema (special_instructions -> specialInstructions)
+    const transformedItems = items.map((item: OrderItem) => ({
+      name: item.name,
+      quantity: item.quantity,
+      specialInstructions: item.special_instructions || item.specialInstructions,
+    }));
+
     // Create order in Convex
     const result = await convex.mutation(api.orders.create, {
       restaurantId: restaurantId as Id<'restaurants'>,
       agentId: agentId as Id<'agents'>,
       customerName: customer_name,
       customerPhone: customer_phone,
-      items,
+      items: transformedItems,
       orderNotes: order_notes,
       pickupTime: pickup_time,
       pickupDate: pickup_date,
     });
 
-    // Build confirmation message
-    const itemsList = (items as OrderItem[]).map((item) => `${item.quantity} ${item.name}`).join(', ');
+    // Build confirmation message (using original items for display)
+    const itemsList = (items as OrderItem[]).map((item) => {
+      let itemStr = `${item.quantity} ${item.name}`;
+      if (item.special_instructions || item.specialInstructions) {
+        itemStr += ` (${item.special_instructions || item.specialInstructions})`;
+      }
+      return itemStr;
+    }).join(', ');
     const pickupInfo = pickup_time
       ? `at ${pickup_time}${pickup_date ? ` on ${pickup_date}` : ''}`
       : pickup_date
@@ -126,7 +140,7 @@ export async function POST(req: NextRequest) {
       order_id: result.orderId,
       customer_name,
       customer_phone,
-      items,
+      items: transformedItems,  // Return the transformed items for consistency
       order_notes,
       pickup_time,
       pickup_date,

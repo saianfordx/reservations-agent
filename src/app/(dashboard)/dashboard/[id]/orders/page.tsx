@@ -6,10 +6,27 @@ import { useAuth } from '@clerk/nextjs';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../../convex/_generated/api';
 import { Id } from '../../../../../../convex/_generated/dataModel';
-import { Search } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { OrderDialog } from '@/features/orders/components/OrderDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type FilterPeriod = 'today' | 'week' | '15days' | 'month';
 
@@ -22,6 +39,30 @@ export default function RestaurantOrdersPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Dialog states
+  const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<{
+    _id: Id<'orders'>;
+    customerName: string;
+    customerPhone: string;
+    items: Array<{
+      name: string;
+      quantity: number;
+      specialInstructions?: string;
+    }>;
+    orderNotes?: string;
+    pickupTime?: string;
+    pickupDate?: string;
+  } | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState<{
+    _id: Id<'orders'>;
+    customerName: string;
+    orderId: string;
+  } | null>(null);
+
+  // Mutations
+  const deleteOrder = useMutation(api.orders.deleteOrder);
 
   const orders = useQuery(
     api.orders.listByDateRange,
@@ -144,6 +185,46 @@ export default function RestaurantOrdersPage() {
     return nameMatch || phoneMatch || orderIdMatch;
   }) || [];
 
+  // Handlers
+  const handleCreateOrder = () => {
+    setEditingOrder(null);
+    setIsOrderDialogOpen(true);
+  };
+
+  const handleEditOrder = (order: {
+    _id: Id<'orders'>;
+    customerName: string;
+    customerPhone: string;
+    items: Array<{
+      name: string;
+      quantity: number;
+      specialInstructions?: string;
+    }>;
+    orderNotes?: string;
+    pickupTime?: string;
+    pickupDate?: string;
+  }) => {
+    setEditingOrder(order);
+    setIsOrderDialogOpen(true);
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!deletingOrder) return;
+
+    try {
+      await deleteOrder({ id: deletingOrder._id });
+      setDeletingOrder(null);
+    } catch (error) {
+      console.error('Failed to delete order:', error);
+      alert('Failed to delete order. Please try again.');
+    }
+  };
+
+  const handleDialogClose = () => {
+    setIsOrderDialogOpen(false);
+    setEditingOrder(null);
+  };
+
   return (
     <div className="space-y-4 lg:space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -153,6 +234,14 @@ export default function RestaurantOrdersPage() {
             {restaurant.name}
           </p>
         </div>
+
+        <Button
+          onClick={handleCreateOrder}
+          className="shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Create Order
+        </Button>
       </div>
 
       {/* Filter Buttons */}
@@ -294,19 +383,43 @@ export default function RestaurantOrdersPage() {
                     </div>
 
                     <div className="flex lg:flex-col items-center lg:items-end gap-2 w-full lg:w-auto justify-between lg:justify-start">
-                      <span
-                        className={`inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
-                          order.status === 'confirmed'
-                            ? 'bg-primary/20 text-primary'
-                            : order.status === 'cancelled'
-                            ? 'bg-destructive/20 text-destructive'
-                            : order.status === 'ready'
-                            ? 'bg-green-500/20 text-green-700'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {order.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
+                            order.status === 'confirmed'
+                              ? 'bg-primary/20 text-primary'
+                              : order.status === 'cancelled'
+                              ? 'bg-destructive/20 text-destructive'
+                              : order.status === 'ready'
+                              ? 'bg-green-500/20 text-green-700'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {order.status}
+                        </span>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditOrder(order)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Order
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setDeletingOrder(order)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Order
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
                       <span className="text-xs text-muted-foreground">
                         ID: {order.orderId}
                       </span>
@@ -318,6 +431,41 @@ export default function RestaurantOrdersPage() {
           </div>
         )}
       </div>
+
+      {/* Order Dialog */}
+      <OrderDialog
+        isOpen={isOrderDialogOpen}
+        onClose={handleDialogClose}
+        restaurantId={restaurantId}
+        order={editingOrder}
+        onSuccess={() => {
+          // Dialog will close automatically on success
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingOrder} onOpenChange={() => setDeletingOrder(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this order? This action cannot be undone.
+              {deletingOrder && (
+                <div className="mt-3 p-3 bg-muted rounded-lg">
+                  <p className="font-medium">{deletingOrder.customerName}</p>
+                  <p className="text-sm text-muted-foreground">Order ID: {deletingOrder.orderId}</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteOrder} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
