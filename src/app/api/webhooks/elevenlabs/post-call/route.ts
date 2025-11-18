@@ -7,20 +7,42 @@ const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 /**
  * Verify ElevenLabs webhook signature
+ * Format: "t=timestamp,v0=hash"
+ * Message: "timestamp.request_body"
  */
 function verifyWebhookSignature(
   payload: string,
-  signature: string,
+  signatureHeader: string,
   secret: string
 ): boolean {
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(payload);
-  const expectedSignature = hmac.digest('hex');
+  try {
+    // Parse signature header: "t=timestamp,v0=hash"
+    const parts = signatureHeader.split(',');
+    const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
+    const hash = parts.find(p => p.startsWith('v0='))?.split('=')[1];
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+    if (!timestamp || !hash) {
+      console.error('Invalid signature header format');
+      return false;
+    }
+
+    // Create message: "timestamp.request_body"
+    const message = `${timestamp}.${payload}`;
+
+    // Compute HMAC-SHA256
+    const hmac = crypto.createHmac('sha256', secret);
+    hmac.update(message);
+    const expectedHash = hmac.digest('hex');
+
+    // Compare hashes
+    return crypto.timingSafeEqual(
+      Buffer.from(hash),
+      Buffer.from(expectedHash)
+    );
+  } catch (error) {
+    console.error('Signature verification error:', error);
+    return false;
+  }
 }
 
 /**
@@ -29,12 +51,20 @@ function verifyWebhookSignature(
  */
 export async function POST(req: NextRequest) {
   try {
+    console.log('🔔 POST-CALL WEBHOOK RECEIVED');
+
     // 1. Get raw body for signature verification
     const rawBody = await req.text();
-    const signature = req.headers.get('elevenlabs-signature');
+    const signature = req.headers.get('elevenlabs-signature') || req.headers.get('ElevenLabs-Signature');
+
+    console.log('Headers:', {
+      signature: signature ? 'present' : 'missing',
+      contentType: req.headers.get('content-type'),
+    });
 
     // 2. Verify webhook signature (if secret is configured)
     if (process.env.ELEVENLABS_WEBHOOK_SECRET && signature) {
+      console.log('Verifying webhook signature...');
       const isValid = verifyWebhookSignature(
         rawBody,
         signature,
@@ -42,26 +72,40 @@ export async function POST(req: NextRequest) {
       );
 
       if (!isValid) {
-        console.error('Invalid webhook signature');
+        console.error('❌ Invalid webhook signature');
         return NextResponse.json(
           { error: 'Invalid signature' },
           { status: 401 }
         );
       }
+      console.log('✅ Signature verified');
+    } else if (process.env.ELEVENLABS_WEBHOOK_SECRET && !signature) {
+      console.warn('⚠️ Webhook secret configured but no signature provided');
     }
 
     // 3. Parse webhook payload
     const payload = JSON.parse(rawBody);
 
-    console.log('Received post-call webhook:', {
-      conversation_id: payload.conversation_id,
-      agent_id: payload.agent_id,
-      has_transcript: !!payload.transcript,
+    console.log('📞 Received post-call webhook:', {
+      type: payload.type,
+      has_data: !!payload.data,
+      conversation_id: payload.conversation_id || payload.data?.conversation_id,
+      agent_id: payload.agent_id || payload.data?.agent_id,
     });
 
+    // Extract data from payload (might be in root or in data object)
+    const data = payload.data || payload;
+    const conversationId = data.conversation_id;
+    const agentId = data.agent_id;
+    const transcript = data.transcript;
+
     // Validate required fields
-    if (!payload.conversation_id || !payload.agent_id || !payload.transcript) {
-      console.error('Missing required fields in webhook payload');
+    if (!conversationId || !agentId || !transcript) {
+      console.error('Missing required fields in webhook payload:', {
+        has_conversation_id: !!conversationId,
+        has_agent_id: !!agentId,
+        has_transcript: !!transcript,
+      });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -70,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Look up agent to get restaurant using Convex
     const agent = await convexClient.query(api.agents.getByElevenLabsAgentId, {
-      elevenLabsAgentId: payload.agent_id,
+      elevenLabsAgentId: agentId,
     });
 
     if (!agent) {
@@ -109,24 +153,24 @@ export async function POST(req: NextRequest) {
 
     // 7. Trigger email notification with OpenAI analysis
     await convexClient.action(api.notifications.sendCallCompletionNotification, {
-      conversationId: payload.conversation_id,
+      conversationId,
       agentId: agent._id,
       restaurantId: agent.restaurantId,
       agentName: agent.name,
       restaurantName: restaurant.name,
-      transcript: payload.transcript,
+      transcript,
       adminEmails,
       callData: {
-        timestamp: payload.event_timestamp || Date.now() / 1000,
-        duration: payload.metadata?.call_duration,
+        timestamp: payload.event_timestamp || data.event_timestamp || Date.now() / 1000,
+        duration: data.metadata?.call_duration,
       },
     });
 
-    console.log('Successfully triggered call completion notification');
+    console.log('✅ Successfully triggered call completion notification');
 
     return NextResponse.json({
       success: true,
-      conversation_id: payload.conversation_id,
+      conversation_id: conversationId,
     });
   } catch (error) {
     console.error('Error processing post-call webhook:', error);
