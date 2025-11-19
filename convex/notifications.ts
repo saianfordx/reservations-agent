@@ -1639,7 +1639,8 @@ export const processPostCallWebhook = action({
         return { success: false, error: 'Failed to fetch audio' };
       }
 
-      const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+      const arrayBuffer = await audioResponse.arrayBuffer();
+      const audioBuffer = new Uint8Array(arrayBuffer);
       const audioSizeMB = audioBuffer.length / (1024 * 1024);
       console.log(`Audio fetched: ${audioSizeMB.toFixed(2)} MB`);
 
