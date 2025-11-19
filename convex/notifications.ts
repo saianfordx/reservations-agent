@@ -1565,10 +1565,10 @@ export const sendCallCompletionNotification = action({
 });
 
 /**
- * Process post-call webhook - internal action called from webhook endpoint
- * Looks up agent, restaurant, and admin emails, then sends notification
+ * Process post-call webhook - public action called from webhook endpoint
+ * Looks up agent, restaurant, and admin emails using internal queries, then sends notification
  */
-export const processPostCallWebhook = internalAction({
+export const processPostCallWebhook = action({
   args: {
     conversationId: v.string(),
     elevenLabsAgentId: v.string(), // ElevenLabs agent ID (not Convex ID)
@@ -1580,32 +1580,33 @@ export const processPostCallWebhook = internalAction({
     try {
       console.log('🔔 Processing post-call webhook:', args.conversationId);
 
-      // 1. Look up agent using internal query
-      const agent = await ctx.runQuery(internal.agents.getByElevenLabsAgentIdInternal, {
+      // 1. Look up agent by ElevenLabs agent ID using internal query
+      // @ts-expect-error - Type instantiation depth issue with Convex generated types
+      const agent = (await ctx.runQuery(internal.agents.getByElevenLabsAgentIdInternal, {
         elevenLabsAgentId: args.elevenLabsAgentId,
-      });
+      })) as any;
 
       if (!agent) {
         console.error('❌ Agent not found for ElevenLabs agent_id:', args.elevenLabsAgentId);
         return { success: false, error: 'Agent not found' };
       }
 
-      console.log('✅ Found agent:', agent._id);
+      console.log('✅ Found agent:', agent._id, '- Restaurant:', agent.restaurantId);
 
-      // 2. Get restaurant details
-      const restaurant = await ctx.runQuery(internal.restaurants.getRestaurantInternal, {
+      // 2. Get restaurant details using internal query
+      const restaurant = (await ctx.runQuery(internal.restaurants.getRestaurantInternal, {
         id: agent.restaurantId,
-      });
+      })) as any;
 
       if (!restaurant) {
         console.error('❌ Restaurant not found:', agent.restaurantId);
         return { success: false, error: 'Restaurant not found' };
       }
 
-      // 3. Get admin emails
-      const adminEmails = await ctx.runQuery(internal.notifications.getAdminEmailsInternal, {
+      // 3. Get admin emails using internal query
+      const adminEmails = (await ctx.runQuery(internal.notifications.getAdminEmailsInternal, {
         restaurantId: agent.restaurantId,
-      });
+      })) as string[];
 
       if (adminEmails.length === 0) {
         console.warn('⚠️ No admin emails found for restaurant:', restaurant.name);
@@ -1614,54 +1615,7 @@ export const processPostCallWebhook = internalAction({
 
       console.log(`✅ Found ${adminEmails.length} admin email(s)`);
 
-      // Now process the call with the data we fetched
-      const args2 = {
-        conversationId: args.conversationId,
-        agentId: agent._id,
-        restaurantId: agent.restaurantId,
-        agentName: agent.name,
-        restaurantName: restaurant.name,
-        transcript: args.transcript,
-        adminEmails,
-        eventTimestamp: args.eventTimestamp,
-        callDuration: args.callDuration,
-      };
-
-      return await processPostCallWebhookInternal(args2);
-    } catch (error: any) {
-      console.error('❌ Error processing post-call webhook:', error);
-      return { success: false, error: error.message };
-    }
-  },
-});
-
-// Internal function to actually send the notification
-async function processPostCallWebhookInternal(args: {
-  conversationId: string;
-  agentId: any;
-  restaurantId: any;
-  agentName: string;
-  restaurantName: string;
-  transcript: string;
-  adminEmails: string[];
-  eventTimestamp?: number;
-  callDuration?: number;
-}) {
-  try {
-    console.log('Processing call completion notification:', args.conversationId);
-
-    const { adminEmails, agentName, restaurantName } = args;
-
-    if (adminEmails.length === 0) {
-      console.log('No admin emails found for restaurant:', restaurantName);
-      return { success: false, error: 'No admin emails found' };
-    }
-
-    // Build agent and restaurant objects from provided data
-    const agent = { _id: args.agentId, name: agentName };
-    const restaurant = { _id: args.restaurantId, name: restaurantName };
-
-    // 3. Analyze call with OpenAI
+      // 4. Analyze call with OpenAI
       console.log('Analyzing call with OpenAI...');
       const analysis = await analyzeCallWithOpenAI(args.transcript);
       console.log('OpenAI analysis complete:', {
@@ -1669,7 +1623,7 @@ async function processPostCallWebhookInternal(args: {
         sentiment: analysis.sentiment_label,
       });
 
-      // 4. Fetch audio from ElevenLabs
+      // 5. Fetch audio from ElevenLabs
       console.log('Fetching audio from ElevenLabs...');
       const audioResponse = await fetch(
         `https://api.elevenlabs.io/v1/convai/conversations/${args.conversationId}/audio`,
@@ -1689,17 +1643,22 @@ async function processPostCallWebhookInternal(args: {
       const audioSizeMB = audioBuffer.length / (1024 * 1024);
       console.log(`Audio fetched: ${audioSizeMB.toFixed(2)} MB`);
 
-      // 5. Build email content
+      // 6. Build email content
+      const agentData = { _id: agent._id, name: agent.name };
+      const restaurantData = { _id: agent.restaurantId, name: restaurant.name };
+
       const emailHtml = buildCallEmailTemplate({
-        agent,
-        restaurant,
+        agent: agentData,
+        restaurant: restaurantData,
         conversationId: args.conversationId,
         analysis,
-        callTimestamp: args.eventTimestamp || Date.now() / 1000,
-        callDuration: args.callDuration,
+        callData: {
+          timestamp: args.eventTimestamp || Date.now() / 1000,
+          duration: args.callDuration,
+        },
       });
 
-      // 6. Send emails to all admins with Resend
+      // 7. Send emails to all admins with Resend
       const resend = new Resend(process.env.RESEND_API_KEY);
       const results = [];
       let successCount = 0;
@@ -1754,9 +1713,8 @@ async function processPostCallWebhookInternal(args: {
         results,
       };
     } catch (error: any) {
-      console.error('Failed to process call completion webhook:', error);
+      console.error('❌ Error processing post-call webhook:', error);
       return { success: false, error: error.message };
     }
   },
 });
-

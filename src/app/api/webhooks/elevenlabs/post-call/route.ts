@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ConvexHttpClient } from 'convex/browser';
-import { api, internal } from '../../../../../../convex/_generated/api';
+import { api } from '../../../../../../convex/_generated/api';
 import crypto from 'crypto';
 
 const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -112,8 +112,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Process webhook via Convex internal action (it will do all lookups internally)
-    const result = await convexClient.action(internal.notifications.processPostCallWebhook, {
+    // 4. Process webhook via Convex public action (it will do all lookups internally)
+    const result = await convexClient.action(api.notifications.processPostCallWebhook, {
       conversationId,
       elevenLabsAgentId: agentId,
       transcript,
