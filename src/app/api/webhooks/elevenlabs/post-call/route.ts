@@ -97,20 +97,38 @@ export async function POST(req: NextRequest) {
     const data = payload.data || payload;
     const conversationId = data.conversation_id;
     const agentId = data.agent_id;
-    const transcript = data.transcript;
+    const transcriptData = data.transcript;
 
     // Validate required fields
-    if (!conversationId || !agentId || !transcript) {
+    if (!conversationId || !agentId || !transcriptData) {
       console.error('Missing required fields in webhook payload:', {
         has_conversation_id: !!conversationId,
         has_agent_id: !!agentId,
-        has_transcript: !!transcript,
+        has_transcript: !!transcriptData,
       });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
+
+    // Convert transcript array to formatted string
+    let transcript: string;
+    if (Array.isArray(transcriptData)) {
+      // ElevenLabs sends transcript as array of conversation turns
+      transcript = transcriptData
+        .map((turn: any) => {
+          const role = turn.role === 'agent' ? 'Agent' : 'User';
+          const message = turn.message || '';
+          return `${role}: ${message}`;
+        })
+        .join('\n');
+    } else {
+      // Fallback if it's already a string
+      transcript = String(transcriptData);
+    }
+
+    console.log('Formatted transcript:', transcript);
 
     // 4. Process webhook via Convex public action (it will do all lookups internally)
     const result = await convexClient.action(api.notifications.processPostCallWebhook, {
