@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(transcriptData)) {
       // ElevenLabs sends transcript as array of conversation turns
       transcript = transcriptData
-        .map((turn: any) => {
+        .map((turn: { role?: string; message?: string }) => {
           const role = turn.role === 'agent' ? 'Agent' : 'User';
           const message = turn.message || '';
           return `${role}: ${message}`;
