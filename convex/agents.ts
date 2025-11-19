@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { mutation, query, action } from './_generated/server';
+import { mutation, query, action, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 
 // Get all agents for a restaurant (public - requires auth)
@@ -48,6 +48,17 @@ export const getByElevenLabsAgentId = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error('Not authenticated');
 
+    return await ctx.db
+      .query('agents')
+      .withIndex('by_elevenlabs_agent_id', (q) => q.eq('elevenLabsAgentId', args.elevenLabsAgentId))
+      .first();
+  },
+});
+
+// Internal version for webhook/action use (no auth required)
+export const getByElevenLabsAgentIdInternal = internalQuery({
+  args: { elevenLabsAgentId: v.string() },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query('agents')
       .withIndex('by_elevenlabs_agent_id', (q) => q.eq('elevenLabsAgentId', args.elevenLabsAgentId))

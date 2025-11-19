@@ -112,61 +112,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Look up agent to get restaurant using Convex
-    const agent = await convexClient.query(api.agents.getByElevenLabsAgentId, {
-      elevenLabsAgentId: agentId,
-    });
-
-    if (!agent) {
-      console.error('Agent not found for ElevenLabs agent_id:', payload.agent_id);
-      return NextResponse.json(
-        { error: 'Agent not found' },
-        { status: 404 }
-      );
-    }
-
-    console.log('Found agent:', {
-      agentId: agent._id,
-      restaurantId: agent.restaurantId,
-      agentName: agent.name,
-    });
-
-    // 5. Get admin emails for the restaurant
-    const adminEmails = await convexClient.query(api.notifications.getAdminEmails, {
-      restaurantId: agent.restaurantId,
-    });
-
-    console.log(`Found ${adminEmails.length} admin emails`);
-
-    // 6. Get restaurant details
-    const restaurant = await convexClient.query(api.restaurants.getRestaurant, {
-      id: agent.restaurantId,
-    });
-
-    if (!restaurant) {
-      console.error('Restaurant not found:', agent.restaurantId);
-      return NextResponse.json(
-        { error: 'Restaurant not found' },
-        { status: 404 }
-      );
-    }
-
-    // 7. Trigger email notification with OpenAI analysis
-    await convexClient.action(api.notifications.sendCallCompletionNotification, {
+    // 4. Process webhook via Convex action (no auth required)
+    const result = await convexClient.action(api.notifications.processPostCallWebhook, {
       conversationId,
-      agentId: agent._id,
-      restaurantId: agent.restaurantId,
-      agentName: agent.name,
-      restaurantName: restaurant.name,
+      agentId,
       transcript,
-      adminEmails,
-      callData: {
-        timestamp: payload.event_timestamp || data.event_timestamp || Date.now() / 1000,
-        duration: data.metadata?.call_duration,
-      },
+      eventTimestamp: payload.event_timestamp || data.event_timestamp,
+      callDuration: data.metadata?.call_duration,
     });
 
-    console.log('✅ Successfully triggered call completion notification');
+    if (!result.success) {
+      console.error('❌ Webhook processing failed:', result.error);
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Successfully processed post-call webhook');
 
     return NextResponse.json({
       success: true,

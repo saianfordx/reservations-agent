@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { action, internalAction, query } from './_generated/server';
+import { internal } from './_generated/api';
 import { Resend } from 'resend';
 import OpenAI from 'openai';
 
@@ -8,6 +9,7 @@ import OpenAI from 'openai';
  * Resend allows 2 requests per second, so we wait 600ms between sends
  */
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 
 /**
  * Get admin emails for a restaurant (public query)
@@ -56,6 +58,68 @@ export const getAdminEmails = query({
     } else if (restaurant.ownerId) {
       // Personal account - get owner email
       const owner = await ctx.db.get(restaurant.ownerId);
+      if (owner?.email) {
+        emails.push(owner.email);
+      }
+    }
+
+    return emails;
+  },
+});
+
+// Internal version for use in actions (no auth required)
+export const getAdminEmailsInternal = internalAction({
+  args: {
+    restaurantId: v.id('restaurants'),
+  },
+  handler: async (ctx, args) => {
+    const restaurant = await ctx.runQuery(internal.restaurants.getRestaurantInternal, {
+      id: args.restaurantId,
+    });
+
+    if (!restaurant) {
+      return [];
+    }
+
+    const emails: string[] = [];
+
+    // If restaurant belongs to an organization
+    if (restaurant.organizationId) {
+      // Get the organization owner
+      const organization = await ctx.runQuery(internal.restaurants.getOrganizationInternal, {
+        id: restaurant.organizationId,
+      });
+      if (organization) {
+        const orgOwner = await ctx.runQuery(internal.users.getUserInternal, {
+          id: organization.createdBy,
+        });
+        if (orgOwner?.email) {
+          emails.push(orgOwner.email);
+        }
+      }
+
+      // Get restaurant managers
+      const restaurantAccess = await ctx.runQuery(internal.restaurants.getRestaurantAccessInternal, {
+        restaurantId: args.restaurantId,
+      });
+
+      const restaurantManagers = restaurantAccess.filter(
+        (access: any) => access.role === 'restaurant:manager'
+      );
+
+      for (const access of restaurantManagers) {
+        const user = await ctx.runQuery(internal.users.getUserInternal, {
+          id: access.userId,
+        });
+        if (user?.email && !emails.includes(user.email)) {
+          emails.push(user.email);
+        }
+      }
+    } else if (restaurant.ownerId) {
+      // Personal account - get owner email
+      const owner = await ctx.runQuery(internal.users.getUserInternal, {
+        id: restaurant.ownerId,
+      });
       if (owner?.email) {
         emails.push(owner.email);
       }
@@ -1504,6 +1568,69 @@ export const sendCallCompletionNotification = action({
       };
     } catch (error: any) {
       console.error('Failed to send call completion notifications:', error);
+      return { success: false, error: error.message };
+    }
+  },
+});
+
+/**
+ * Process ElevenLabs post-call webhook (called from Next.js API route)
+ * This action doesn't require authentication and calls internal functions
+ */
+export const processPostCallWebhook = action({
+  args: {
+    conversationId: v.string(),
+    agentId: v.string(), // ElevenLabs agent ID
+    transcript: v.string(),
+    eventTimestamp: v.optional(v.number()),
+    callDuration: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    try {
+      console.log('🔔 Processing post-call webhook:', args.conversationId);
+
+      // 1. Look up agent by ElevenLabs agent ID
+      const agent = await ctx.runQuery(internal.agents.getByElevenLabsAgentIdInternal, {
+        elevenLabsAgentId: args.agentId,
+      });
+
+      if (!agent) {
+        console.error('❌ Agent not found for ElevenLabs agent_id:', args.agentId);
+        return { success: false, error: 'Agent not found' };
+      }
+
+      console.log('✅ Found agent:', agent._id, '- Restaurant:', agent.restaurantId);
+
+      // 2. Get restaurant and admin emails via internal action
+      const adminEmails = await ctx.runAction(internal.notifications.getAdminEmailsInternal, {
+        restaurantId: agent.restaurantId,
+      });
+
+      if (adminEmails.length === 0) {
+        console.warn('⚠️ No admin emails found for agent:', agent.name);
+        return { success: false, error: 'No admin emails found' };
+      }
+
+      console.log(`✅ Found ${adminEmails.length} admin email(s)`);
+
+      // 3. Send the notification (pass all data to avoid circular queries)
+      const result = await ctx.runAction(internal.notifications.sendCallCompletionNotification, {
+        conversationId: args.conversationId,
+        agentId: agent._id,
+        restaurantId: agent.restaurantId,
+        agentName: agent.name,
+        restaurantName: agent.restaurantName || 'Restaurant',
+        transcript: args.transcript,
+        adminEmails,
+        callData: {
+          timestamp: args.eventTimestamp || Date.now() / 1000,
+          duration: args.callDuration,
+        },
+      });
+
+      return result;
+    } catch (error: any) {
+      console.error('❌ Error processing post-call webhook:', error);
       return { success: false, error: error.message };
     }
   },
