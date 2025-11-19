@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { action, internalAction, query } from './_generated/server';
+import { action, internalAction, query, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { Resend } from 'resend';
 import OpenAI from 'openai';
@@ -67,15 +67,13 @@ export const getAdminEmails = query({
   },
 });
 
-// Internal version for use in actions (no auth required)
-export const getAdminEmailsInternal = internalAction({
+// Internal query version (no auth) for webhook processing
+export const getAdminEmailsInternal = internalQuery({
   args: {
     restaurantId: v.id('restaurants'),
   },
   handler: async (ctx, args) => {
-    const restaurant = await ctx.runQuery(internal.restaurants.getRestaurantInternal, {
-      id: args.restaurantId,
-    });
+    const restaurant = await ctx.db.get(args.restaurantId);
 
     if (!restaurant) {
       return [];
@@ -86,40 +84,33 @@ export const getAdminEmailsInternal = internalAction({
     // If restaurant belongs to an organization
     if (restaurant.organizationId) {
       // Get the organization owner
-      const organization = await ctx.runQuery(internal.restaurants.getOrganizationInternal, {
-        id: restaurant.organizationId,
-      });
+      const organization = await ctx.db.get(restaurant.organizationId);
       if (organization) {
-        const orgOwner = await ctx.runQuery(internal.users.getUserInternal, {
-          id: organization.createdBy,
-        });
+        const orgOwner = await ctx.db.get(organization.createdBy);
         if (orgOwner?.email) {
           emails.push(orgOwner.email);
         }
       }
 
-      // Get restaurant managers
-      const restaurantAccess = await ctx.runQuery(internal.restaurants.getRestaurantAccessInternal, {
-        restaurantId: args.restaurantId,
-      });
+      // Get restaurant managers only (not owners)
+      const restaurantAccess = await ctx.db
+        .query('restaurantAccess')
+        .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
+        .collect();
 
       const restaurantManagers = restaurantAccess.filter(
-        (access: any) => access.role === 'restaurant:manager'
+        (access) => access.role === 'restaurant:manager'
       );
 
       for (const access of restaurantManagers) {
-        const user = await ctx.runQuery(internal.users.getUserInternal, {
-          id: access.userId,
-        });
+        const user = await ctx.db.get(access.userId);
         if (user?.email && !emails.includes(user.email)) {
           emails.push(user.email);
         }
       }
     } else if (restaurant.ownerId) {
       // Personal account - get owner email
-      const owner = await ctx.runQuery(internal.users.getUserInternal, {
-        id: restaurant.ownerId,
-      });
+      const owner = await ctx.db.get(restaurant.ownerId);
       if (owner?.email) {
         emails.push(owner.email);
       }
@@ -1574,64 +1565,198 @@ export const sendCallCompletionNotification = action({
 });
 
 /**
- * Process ElevenLabs post-call webhook (called from Next.js API route)
- * This action doesn't require authentication and calls internal functions
+ * Process post-call webhook - internal action called from webhook endpoint
+ * Looks up agent, restaurant, and admin emails, then sends notification
  */
-export const processPostCallWebhook = action({
+export const processPostCallWebhook = internalAction({
   args: {
     conversationId: v.string(),
-    agentId: v.string(), // ElevenLabs agent ID
+    elevenLabsAgentId: v.string(), // ElevenLabs agent ID (not Convex ID)
     transcript: v.string(),
     eventTimestamp: v.optional(v.number()),
     callDuration: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ success: boolean; error?: string; totalSent?: number; totalFailed?: number; results?: any[] }> => {
     try {
       console.log('🔔 Processing post-call webhook:', args.conversationId);
 
-      // 1. Look up agent by ElevenLabs agent ID
+      // 1. Look up agent using internal query
       const agent = await ctx.runQuery(internal.agents.getByElevenLabsAgentIdInternal, {
-        elevenLabsAgentId: args.agentId,
+        elevenLabsAgentId: args.elevenLabsAgentId,
       });
 
       if (!agent) {
-        console.error('❌ Agent not found for ElevenLabs agent_id:', args.agentId);
+        console.error('❌ Agent not found for ElevenLabs agent_id:', args.elevenLabsAgentId);
         return { success: false, error: 'Agent not found' };
       }
 
-      console.log('✅ Found agent:', agent._id, '- Restaurant:', agent.restaurantId);
+      console.log('✅ Found agent:', agent._id);
 
-      // 2. Get restaurant and admin emails via internal action
-      const adminEmails = await ctx.runAction(internal.notifications.getAdminEmailsInternal, {
+      // 2. Get restaurant details
+      const restaurant = await ctx.runQuery(internal.restaurants.getRestaurantInternal, {
+        id: agent.restaurantId,
+      });
+
+      if (!restaurant) {
+        console.error('❌ Restaurant not found:', agent.restaurantId);
+        return { success: false, error: 'Restaurant not found' };
+      }
+
+      // 3. Get admin emails
+      const adminEmails = await ctx.runQuery(internal.notifications.getAdminEmailsInternal, {
         restaurantId: agent.restaurantId,
       });
 
       if (adminEmails.length === 0) {
-        console.warn('⚠️ No admin emails found for agent:', agent.name);
+        console.warn('⚠️ No admin emails found for restaurant:', restaurant.name);
         return { success: false, error: 'No admin emails found' };
       }
 
       console.log(`✅ Found ${adminEmails.length} admin email(s)`);
 
-      // 3. Send the notification (pass all data to avoid circular queries)
-      const result = await ctx.runAction(internal.notifications.sendCallCompletionNotification, {
+      // Now process the call with the data we fetched
+      const args2 = {
         conversationId: args.conversationId,
         agentId: agent._id,
         restaurantId: agent.restaurantId,
         agentName: agent.name,
-        restaurantName: agent.restaurantName || 'Restaurant',
+        restaurantName: restaurant.name,
         transcript: args.transcript,
         adminEmails,
-        callData: {
-          timestamp: args.eventTimestamp || Date.now() / 1000,
-          duration: args.callDuration,
-        },
-      });
+        eventTimestamp: args.eventTimestamp,
+        callDuration: args.callDuration,
+      };
 
-      return result;
+      return await processPostCallWebhookInternal(args2);
     } catch (error: any) {
       console.error('❌ Error processing post-call webhook:', error);
       return { success: false, error: error.message };
     }
   },
 });
+
+// Internal function to actually send the notification
+async function processPostCallWebhookInternal(args: {
+  conversationId: string;
+  agentId: any;
+  restaurantId: any;
+  agentName: string;
+  restaurantName: string;
+  transcript: string;
+  adminEmails: string[];
+  eventTimestamp?: number;
+  callDuration?: number;
+}) {
+  try {
+    console.log('Processing call completion notification:', args.conversationId);
+
+    const { adminEmails, agentName, restaurantName } = args;
+
+    if (adminEmails.length === 0) {
+      console.log('No admin emails found for restaurant:', restaurantName);
+      return { success: false, error: 'No admin emails found' };
+    }
+
+    // Build agent and restaurant objects from provided data
+    const agent = { _id: args.agentId, name: agentName };
+    const restaurant = { _id: args.restaurantId, name: restaurantName };
+
+    // 3. Analyze call with OpenAI
+      console.log('Analyzing call with OpenAI...');
+      const analysis = await analyzeCallWithOpenAI(args.transcript);
+      console.log('OpenAI analysis complete:', {
+        call_subject: analysis.call_subject,
+        sentiment: analysis.sentiment_label,
+      });
+
+      // 4. Fetch audio from ElevenLabs
+      console.log('Fetching audio from ElevenLabs...');
+      const audioResponse = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversations/${args.conversationId}/audio`,
+        {
+          headers: {
+            'xi-api-key': process.env.ELEVENLABS_API_KEY!,
+          },
+        }
+      );
+
+      if (!audioResponse.ok) {
+        console.error('Failed to fetch audio:', audioResponse.statusText);
+        return { success: false, error: 'Failed to fetch audio' };
+      }
+
+      const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+      const audioSizeMB = audioBuffer.length / (1024 * 1024);
+      console.log(`Audio fetched: ${audioSizeMB.toFixed(2)} MB`);
+
+      // 5. Build email content
+      const emailHtml = buildCallEmailTemplate({
+        agent,
+        restaurant,
+        conversationId: args.conversationId,
+        analysis,
+        callTimestamp: args.eventTimestamp || Date.now() / 1000,
+        callDuration: args.callDuration,
+      });
+
+      // 6. Send emails to all admins with Resend
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const results = [];
+      let successCount = 0;
+
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+
+        try {
+          console.log(`Sending call notification to: ${email} (${i + 1}/${adminEmails.length})`);
+
+          const emailData: any = {
+            from: 'Calls <calls@updates.nerdvi.ai>',
+            to: email,
+            subject: `📞 ${analysis.call_subject} - ${restaurant.name}`,
+            html: emailHtml,
+          };
+
+          // Only attach MP3 if less than 35MB (Resend limit is 40MB)
+          if (audioSizeMB < 35) {
+            emailData.attachments = [
+              {
+                filename: `call-${args.conversationId}.mp3`,
+                content: audioBuffer,
+              },
+            ];
+          } else {
+            console.warn(`Audio too large (${audioSizeMB.toFixed(2)} MB) to attach to email`);
+          }
+
+          const result = await resend.emails.send(emailData);
+
+          console.log(`Call notification sent successfully to ${email}`);
+          results.push({ email, success: true, id: result.data?.id });
+          successCount++;
+
+          // Rate limit: Resend allows 2 requests per second
+          if (i < adminEmails.length - 1) {
+            await delay(600);
+          }
+        } catch (error: any) {
+          console.error(`Failed to send call notification to ${email}:`, error.message);
+          results.push({ email, success: false, error: error.message });
+        }
+      }
+
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} call notifications`);
+
+      return {
+        success: successCount > 0,
+        totalSent: successCount,
+        totalFailed: results.filter((r) => !r.success).length,
+        results,
+      };
+    } catch (error: any) {
+      console.error('Failed to process call completion webhook:', error);
+      return { success: false, error: error.message };
+    }
+  },
+});
+

@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { mutation, query, internalQuery } from './_generated/server';
 import { auth } from '@clerk/nextjs/server';
 import { isOrgAdmin } from './permissions';
 
@@ -437,6 +437,14 @@ export const getRestaurantPublic = query({
   handler: async (ctx, args) => {
     const restaurant = await ctx.db.get(args.id);
     return restaurant;
+  },
+});
+
+// Internal query version for webhook processing
+export const getRestaurantInternal = internalQuery({
+  args: { id: v.id('restaurants') },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
   },
 });
 
