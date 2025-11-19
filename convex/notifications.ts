@@ -1644,6 +1644,17 @@ export const processPostCallWebhook = action({
       const audioSizeMB = audioBuffer.length / (1024 * 1024);
       console.log(`Audio fetched: ${audioSizeMB.toFixed(2)} MB`);
 
+      // Convert Uint8Array to Base64 string for email attachment
+      // Resend requires attachments as Base64 strings or Buffer (Node.js only)
+      let binary = '';
+      const chunkSize = 8192; // Process in chunks to avoid stack overflow
+      for (let i = 0; i < audioBuffer.length; i += chunkSize) {
+        const chunk = audioBuffer.subarray(i, Math.min(i + chunkSize, audioBuffer.length));
+        binary += String.fromCharCode(...chunk);
+      }
+      const base64Audio = btoa(binary);
+      console.log('Converted audio to base64, length:', base64Audio.length);
+
       // 6. Build email content
       const agentData = { _id: agent._id, name: agent.name };
       const restaurantData = { _id: agent.restaurantId, name: restaurant.name };
@@ -1682,7 +1693,7 @@ export const processPostCallWebhook = action({
             emailData.attachments = [
               {
                 filename: `call-${args.conversationId}.mp3`,
-                content: audioBuffer,
+                content: base64Audio,
               },
             ];
           } else {
