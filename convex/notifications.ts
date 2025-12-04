@@ -118,8 +118,8 @@ export const getAdminEmailsInternal = internalQuery({
 
     // Add notification emails from restaurant settings
     const restaurantData = restaurant as any;
-    if (restaurantData.notificationEmails && Array.isArray(restaurantData.notificationEmails)) {
-      for (const email of restaurantData.notificationEmails) {
+    if (restaurantData.settings?.notificationEmails && Array.isArray(restaurantData.settings.notificationEmails)) {
+      for (const email of restaurantData.settings.notificationEmails) {
         if (email && !emails.includes(email)) {
           emails.push(email);
         }
