@@ -151,7 +151,16 @@ export async function POST(req: NextRequest) {
 
     // 4. Process webhook via Convex public action (it will do all lookups internally)
     // Only include optional fields if they have actual values (to avoid Convex validator issues with null)
-    const webhookData: any = {
+    const webhookData: {
+      conversationId: string;
+      elevenLabsAgentId: string;
+      transcript: string;
+      eventTimestamp?: number;
+      callDuration?: number;
+      callerPhoneNumber?: string;
+      restaurantPhoneNumber?: string;
+      callProvider?: string;
+    } = {
       conversationId,
       elevenLabsAgentId: agentId,
       transcript,
