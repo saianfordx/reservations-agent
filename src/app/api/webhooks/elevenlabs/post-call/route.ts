@@ -130,6 +130,21 @@ export async function POST(req: NextRequest) {
 
     console.log('Formatted transcript:', transcript);
 
+    // Extract caller phone number and call metadata from ElevenLabs webhook
+    const metadata = data.metadata;
+    const phoneCallData = metadata?.phone_call?.body;
+    const callerPhoneNumber = phoneCallData?.from || null;
+    const restaurantPhoneNumber = phoneCallData?.to || null;
+    const callProvider = metadata?.phone_call?.type || null;
+
+    console.log('📞 Call metadata extracted:', {
+      caller: callerPhoneNumber,
+      restaurant: restaurantPhoneNumber,
+      provider: callProvider,
+      has_metadata: !!metadata,
+      has_phone_call_data: !!phoneCallData,
+    });
+
     // 4. Process webhook via Convex public action (it will do all lookups internally)
     const result = await convexClient.action(api.notifications.processPostCallWebhook, {
       conversationId,
@@ -137,6 +152,9 @@ export async function POST(req: NextRequest) {
       transcript,
       eventTimestamp: payload.event_timestamp || data.event_timestamp,
       callDuration: data.metadata?.call_duration,
+      callerPhoneNumber,
+      restaurantPhoneNumber,
+      callProvider,
     });
 
     if (!result.success) {

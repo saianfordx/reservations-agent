@@ -1226,6 +1226,7 @@ interface CallAnalysis {
   sentiment_score: number;
   sentiment_label: 'Happy' | 'Neutral' | 'Frustrated';
   customer_name_provided: boolean;
+  customer_name: string;
   action_taken: string;
   issues: string;
   follow_up_needed: boolean;
@@ -1268,6 +1269,7 @@ Please provide:
 
 4. KEY_DETAILS:
    - Customer provided name: yes/no
+   - Customer name: Extract the actual customer name if provided in the conversation, otherwise use "Not provided"
    - Action taken: (e.g., "Made reservation for 4 guests on Friday at 7pm", "Placed to-go order", "Just checking menu", "No action taken")
    - Issues or complaints: (if any)
    - Follow-up needed: yes/no (and why)
@@ -1279,6 +1281,7 @@ Format your response as JSON:
   "sentiment_score": 8,
   "sentiment_label": "Happy",
   "customer_name_provided": true,
+  "customer_name": "John Smith",
   "action_taken": "...",
   "issues": "",
   "follow_up_needed": false,
@@ -1302,10 +1305,17 @@ function buildCallEmailTemplate(params: {
   restaurant: any;
   agent: any;
   analysis: CallAnalysis;
-  callData: { timestamp: number; duration?: number };
+  callData: {
+    timestamp: number;
+    duration?: number;
+    callerPhoneNumber?: string;
+    restaurantPhoneNumber?: string;
+    callProvider?: string;
+  };
   conversationId: string;
+  fullTranscript?: string;
 }) {
-  const { restaurant, agent, analysis, callData, conversationId } = params;
+  const { restaurant, agent, analysis, callData, conversationId, fullTranscript } = params;
 
   // Sentiment badge color
   const sentimentColor =
@@ -1370,6 +1380,24 @@ function buildCallEmailTemplate(params: {
               <td style="padding: 8px 0; color: #1f2937;">${formattedDate}</td>
             </tr>
             ${
+              callData.callerPhoneNumber
+                ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Caller Number:</td>
+              <td style="padding: 8px 0; color: #1f2937; font-family: monospace; font-weight: 600; font-size: 15px;">
+                📞 ${callData.callerPhoneNumber}
+              </td>
+            </tr>
+            `
+                : ''
+            }
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Customer Name:</td>
+              <td style="padding: 8px 0; color: #1f2937;">
+                ${analysis.customer_name_provided ? `✅ ${analysis.customer_name}` : '❌ Not provided'}
+              </td>
+            </tr>
+            ${
               callData.duration
                 ? `
             <tr>
@@ -1382,12 +1410,6 @@ function buildCallEmailTemplate(params: {
             <tr>
               <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Agent:</td>
               <td style="padding: 8px 0; color: #1f2937;">${agent.name}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Customer Name:</td>
-              <td style="padding: 8px 0; color: #1f2937;">
-                ${analysis.customer_name_provided ? '✅ Provided' : '❌ Not provided'}
-              </td>
             </tr>
             <tr>
               <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Action Taken:</td>
@@ -1431,6 +1453,25 @@ function buildCallEmailTemplate(params: {
             </p>
           </div>
         </div>
+
+        ${
+          fullTranscript
+            ? `
+        <!-- Full Transcript -->
+        <div style="background-color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <h2 style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
+            📝 Full Conversation Transcript
+          </h2>
+          <div style="background-color: #f9fafb; padding: 16px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb;">
+            <pre style="font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace; font-size: 13px; line-height: 1.8; color: #374151; white-space: pre-wrap; margin: 0; word-wrap: break-word;">${fullTranscript}</pre>
+          </div>
+          <p style="margin: 12px 0 0 0; color: #9ca3af; font-size: 12px; text-align: center;">
+            💡 Tip: Scroll within the transcript box to read the full conversation
+          </p>
+        </div>
+        `
+            : ''
+        }
 
         <!-- Footer -->
         <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center;">
@@ -1592,6 +1633,9 @@ export const processPostCallWebhook = action({
     transcript: v.string(),
     eventTimestamp: v.optional(v.number()),
     callDuration: v.optional(v.number()),
+    callerPhoneNumber: v.optional(v.string()),
+    restaurantPhoneNumber: v.optional(v.string()),
+    callProvider: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ success: boolean; error?: string; totalSent?: number; totalFailed?: number; results?: any[] }> => {
     try {
@@ -1684,7 +1728,11 @@ export const processPostCallWebhook = action({
         callData: {
           timestamp: args.eventTimestamp || Date.now() / 1000,
           duration: args.callDuration,
+          callerPhoneNumber: args.callerPhoneNumber,
+          restaurantPhoneNumber: args.restaurantPhoneNumber,
+          callProvider: args.callProvider,
         },
+        fullTranscript: args.transcript,
       });
 
       // 7. Send emails to all admins with Resend
