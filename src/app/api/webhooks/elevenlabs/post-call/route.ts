@@ -131,31 +131,50 @@ export async function POST(req: NextRequest) {
     console.log('Formatted transcript:', transcript);
 
     // Extract caller phone number and call metadata from ElevenLabs webhook
+    // According to ElevenLabs docs:
+    // - user_id: Contains the caller's phone number for phone calls
+    // - metadata.external_number: Alternative field for participant's phone number
+    // - metadata.agent_number: The ElevenLabs agent's phone number (restaurant)
     const metadata = data.metadata;
-    const phoneCallData = metadata?.phone_call?.body;
-    const callerPhoneNumber = phoneCallData?.from || null;
-    const restaurantPhoneNumber = phoneCallData?.to || null;
-    const callProvider = metadata?.phone_call?.type || null;
+    const callerPhoneNumber = data.user_id || metadata?.external_number;
+    const restaurantPhoneNumber = metadata?.agent_number;
+    const callProvider = metadata?.phone_call?.type;
 
     console.log('📞 Call metadata extracted:', {
       caller: callerPhoneNumber,
       restaurant: restaurantPhoneNumber,
       provider: callProvider,
-      has_metadata: !!metadata,
-      has_phone_call_data: !!phoneCallData,
+      user_id: data.user_id,
+      external_number: metadata?.external_number,
+      agent_number: metadata?.agent_number,
     });
 
     // 4. Process webhook via Convex public action (it will do all lookups internally)
-    const result = await convexClient.action(api.notifications.processPostCallWebhook, {
+    // Only include optional fields if they have actual values (to avoid Convex validator issues with null)
+    const webhookData: any = {
       conversationId,
       elevenLabsAgentId: agentId,
       transcript,
-      eventTimestamp: payload.event_timestamp || data.event_timestamp,
-      callDuration: data.metadata?.call_duration,
-      callerPhoneNumber,
-      restaurantPhoneNumber,
-      callProvider,
-    });
+    };
+
+    // Add optional fields only if they exist
+    if (payload.event_timestamp || data.event_timestamp) {
+      webhookData.eventTimestamp = payload.event_timestamp || data.event_timestamp;
+    }
+    if (data.metadata?.call_duration) {
+      webhookData.callDuration = data.metadata.call_duration;
+    }
+    if (callerPhoneNumber) {
+      webhookData.callerPhoneNumber = callerPhoneNumber;
+    }
+    if (restaurantPhoneNumber) {
+      webhookData.restaurantPhoneNumber = restaurantPhoneNumber;
+    }
+    if (callProvider) {
+      webhookData.callProvider = callProvider;
+    }
+
+    const result = await convexClient.action(api.notifications.processPostCallWebhook, webhookData);
 
     if (!result.success) {
       console.error('❌ Webhook processing failed:', result.error);
