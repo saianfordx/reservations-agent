@@ -1642,7 +1642,6 @@ export const processPostCallWebhook = action({
       console.log('🔔 Processing post-call webhook:', args.conversationId);
 
       // 1. Look up agent by ElevenLabs agent ID using internal query
-      // @ts-expect-error - Type instantiation depth issue with Convex generated types
       const agent = (await ctx.runQuery(internal.agents.getByElevenLabsAgentIdInternal, {
         elevenLabsAgentId: args.elevenLabsAgentId,
       })) as any;

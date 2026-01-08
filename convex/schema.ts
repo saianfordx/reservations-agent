@@ -442,4 +442,29 @@ export default defineSchema({
     .index('by_agent', ['agentId'])
     .index('by_customer_phone', ['customerPhone'])
     .index('by_status', ['status']),
+
+  // ============================================
+  // INTEGRATIONS
+  // ============================================
+
+  integrations: defineTable({
+    restaurantId: v.id('restaurants'),
+    provider: v.string(), // 'the_account', 'toast', 'square', etc.
+
+    // The Account specific fields
+    tenantSlug: v.optional(v.string()), // e.g., 'tacos-el-rey'
+    apiKey: v.optional(v.string()), // e.g., 'po_d7b878...'
+
+    // Status tracking
+    status: v.string(), // 'connected', 'disconnected', 'error'
+    lastTestedAt: v.optional(v.number()),
+    lastTestResult: v.optional(v.string()), // 'success' or error message
+
+    // Metadata
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id('users'),
+  })
+    .index('by_restaurant', ['restaurantId'])
+    .index('by_restaurant_provider', ['restaurantId', 'provider']),
 });

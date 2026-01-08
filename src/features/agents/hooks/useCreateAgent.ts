@@ -37,7 +37,6 @@ interface CreateAgentParams {
 export function useCreateAgent() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // @ts-expect-error - Type instantiation is excessively deep due to complex Convex mutation type inference
   const createAgentMutation = useMutation(api.agents.create);
   const updateDocumentsMutation = useMutation(api.agents.updateDocuments);
 
