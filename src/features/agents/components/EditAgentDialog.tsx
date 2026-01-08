@@ -17,8 +17,38 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { VoiceSelector } from './VoiceSelector';
 import { KnowledgeBaseManager } from './KnowledgeBaseManager';
+import { ConversationSettings } from './ConversationSettings';
+import { LanguageSettings } from './LanguageSettings';
+import { VoiceSettingsPanel } from './VoiceSettingsPanel';
+import {
+  LanguageSettings as LanguageSettingsType,
+  VoiceSettings as VoiceSettingsType,
+  ConversationBehavior,
+  FirstMessageSettings,
+  AudioSettings,
+  UserInputAudioFormat,
+  DEFAULT_LANGUAGE_SETTINGS,
+  DEFAULT_CONVERSATION_BEHAVIOR,
+  DEFAULT_FIRST_MESSAGE_SETTINGS,
+  DEFAULT_AUDIO_SETTINGS,
+} from '../types/agent-config.types';
+import { USER_INPUT_AUDIO_FORMATS } from '../constants/languages';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface EditAgentDialogProps {
   agent: {
@@ -33,6 +63,13 @@ interface EditAgentDialogProps {
     agentConfig: {
       greeting: string;
     };
+    // Config fields
+    languages?: LanguageSettingsType;
+    voiceSettings?: VoiceSettingsType;
+    // Note: llmSettings removed - ElevenLabs uses GPT-5.1 by default
+    conversationBehavior?: ConversationBehavior;
+    firstMessageSettings?: FirstMessageSettings;
+    audioSettings?: AudioSettings;
   };
   restaurantOrganizationId?: string;
   onSuccess?: () => void;
@@ -50,6 +87,29 @@ export function EditAgentDialog({ agent, restaurantOrganizationId, onSuccess }: 
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingPrompt, setIsFetchingPrompt] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // New configuration state
+  const [languages, setLanguages] = useState<LanguageSettingsType>(
+    agent.languages || DEFAULT_LANGUAGE_SETTINGS
+  );
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettingsType | undefined>(
+    agent.voiceSettings
+  );
+  // Note: llmSettings state removed - ElevenLabs uses GPT-5.1 by default
+  const [conversationBehavior, setConversationBehavior] = useState<ConversationBehavior>(
+    agent.conversationBehavior || DEFAULT_CONVERSATION_BEHAVIOR
+  );
+  const [firstMessageSettings, setFirstMessageSettings] = useState<FirstMessageSettings>(
+    agent.firstMessageSettings || { ...DEFAULT_FIRST_MESSAGE_SETTINGS, defaultMessage: agent.agentConfig.greeting }
+  );
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(
+    agent.audioSettings || DEFAULT_AUDIO_SETTINGS
+  );
+
+  // Collapsible sections state
+  const [showAdvancedVoice, setShowAdvancedVoice] = useState(false);
+  const [showConversationBehavior, setShowConversationBehavior] = useState(false);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
 
   const updateAgentMutation = useMutation(api.agents.update);
   const addToAgentMutation = useMutation(api.knowledgeBase.addToAgent);
@@ -95,16 +155,22 @@ export function EditAgentDialog({ agent, restaurantOrganizationId, onSuccess }: 
     setError(null);
 
     try {
-      // Step 1: Update ElevenLabs agent
+      // Step 1: Update ElevenLabs agent with all configuration
       const elevenLabsResponse = await fetch(`/api/agents/${agent._id}/update`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           elevenLabsAgentId: agent.elevenLabsAgentId,
           name,
-          greeting,
-          voiceId: selectedVoiceId,
+          greeting: firstMessageSettings.defaultMessage || greeting,
+          voiceId: voiceSettings?.primaryVoice?.voiceId || selectedVoiceId,
           prompt,
+          // Configuration fields (llmSettings removed - ElevenLabs uses GPT-5.1)
+          languages,
+          voiceSettings,
+          conversationBehavior,
+          firstMessageSettings,
+          audioSettings,
         }),
       });
 
@@ -117,10 +183,16 @@ export function EditAgentDialog({ agent, restaurantOrganizationId, onSuccess }: 
       await updateAgentMutation({
         agentId: agent._id as Id<'agents'>,
         name,
-        greeting,
-        voiceId: selectedVoiceId,
-        voiceName: selectedVoiceName,
+        greeting: firstMessageSettings.defaultMessage || greeting,
+        voiceId: voiceSettings?.primaryVoice?.voiceId || selectedVoiceId,
+        voiceName: voiceSettings?.primaryVoice?.voiceName || selectedVoiceName,
         prompt,
+        // Configuration fields (llmSettings removed - ElevenLabs uses GPT-5.1)
+        languages,
+        voiceSettings,
+        conversationBehavior,
+        firstMessageSettings,
+        audioSettings,
       });
 
       // Step 3: Update knowledge base mappings in Convex
@@ -191,6 +263,15 @@ export function EditAgentDialog({ agent, restaurantOrganizationId, onSuccess }: 
         setSelectedVoiceName(agent.voiceName);
         setError(null);
         setActiveTab('basic');
+        // Reset configuration state (llmSettings removed - ElevenLabs uses GPT-5.1)
+        setLanguages(agent.languages || DEFAULT_LANGUAGE_SETTINGS);
+        setVoiceSettings(agent.voiceSettings);
+        setConversationBehavior(agent.conversationBehavior || DEFAULT_CONVERSATION_BEHAVIOR);
+        setFirstMessageSettings(agent.firstMessageSettings || { ...DEFAULT_FIRST_MESSAGE_SETTINGS, defaultMessage: agent.agentConfig.greeting });
+        setAudioSettings(agent.audioSettings || DEFAULT_AUDIO_SETTINGS);
+        setShowAdvancedVoice(false);
+        setShowConversationBehavior(false);
+        setShowAudioSettings(false);
       }
     }
   };
@@ -231,36 +312,173 @@ export function EditAgentDialog({ agent, restaurantOrganizationId, onSuccess }: 
                 />
               </div>
 
-              {/* Voice Selection */}
+              {/* Language Settings */}
               <div className="space-y-2">
-                <Label>Voice</Label>
+                <Label className="text-base font-medium">Languages</Label>
+                <LanguageSettings
+                  settings={languages}
+                  onChange={setLanguages}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* First Message / Greeting */}
+              <div className="space-y-4 p-4 border rounded-lg">
+                <Label className="text-base font-medium">First Message</Label>
+                <div className="space-y-2">
+                  <Textarea
+                    id="greeting"
+                    value={firstMessageSettings.defaultMessage}
+                    onChange={(e) => setFirstMessageSettings({
+                      ...firstMessageSettings,
+                      defaultMessage: e.target.value,
+                    })}
+                    disabled={isLoading}
+                    placeholder="e.g., Thank you for calling! How may I assist you today?"
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This is what the agent will say when answering a call.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="interruptible">Interruptible</Label>
+                    <p className="text-xs text-muted-foreground">Allow caller to interrupt the greeting</p>
+                  </div>
+                  <Switch
+                    id="interruptible"
+                    checked={firstMessageSettings.interruptible}
+                    onCheckedChange={(checked) => setFirstMessageSettings({
+                      ...firstMessageSettings,
+                      interruptible: checked,
+                    })}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="translateToAll">Translate to All</Label>
+                    <p className="text-xs text-muted-foreground">Auto-translate greeting to additional languages</p>
+                  </div>
+                  <Switch
+                    id="translateToAll"
+                    checked={firstMessageSettings.translateToAll}
+                    onCheckedChange={(checked) => setFirstMessageSettings({
+                      ...firstMessageSettings,
+                      translateToAll: checked,
+                    })}
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              {/* Voice Selection - Simple */}
+              <div className="space-y-2">
+                <Label>Primary Voice</Label>
                 <VoiceSelector
-                  selectedVoiceId={selectedVoiceId}
-                  onVoiceSelect={(id, name) => {
+                  selectedVoiceId={voiceSettings?.primaryVoice?.voiceId || selectedVoiceId}
+                  onVoiceSelect={(id, voiceName) => {
                     setSelectedVoiceId(id);
-                    setSelectedVoiceName(name);
+                    setSelectedVoiceName(voiceName);
+                    setVoiceSettings({
+                      ...voiceSettings,
+                      primaryVoice: {
+                        ...(voiceSettings?.primaryVoice || {
+                          language: languages.defaultLanguage,
+                          stability: 0.5,
+                          speed: 1.0,
+                          similarityBoost: 0.8,
+                        }),
+                        voiceId: id,
+                        voiceName,
+                      },
+                      additionalVoices: voiceSettings?.additionalVoices || [],
+                      ttsModelId: voiceSettings?.ttsModelId || 'eleven_flash_v2_5',
+                    });
                   }}
                 />
               </div>
 
-              {/* Greeting */}
-              <div className="space-y-2">
-                <Label htmlFor="greeting">First Message / Greeting</Label>
-                <Textarea
-                  id="greeting"
-                  value={greeting}
-                  onChange={(e) => setGreeting(e.target.value)}
-                  disabled={isLoading}
-                  placeholder="e.g., Thank you for calling Bella's Bistro! How may I assist you today?"
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  This is what the agent will say when answering a call.
-                </p>
-              </div>
+              {/* Advanced Voice Settings - Collapsible */}
+              <Collapsible open={showAdvancedVoice} onOpenChange={setShowAdvancedVoice}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between">
+                    <span>Advanced Voice Settings</span>
+                    {showAdvancedVoice ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-4">
+                  <VoiceSettingsPanel
+                    settings={voiceSettings}
+                    onChange={setVoiceSettings}
+                    disabled={isLoading}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Conversation Behavior - Collapsible */}
+              <Collapsible open={showConversationBehavior} onOpenChange={setShowConversationBehavior}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between">
+                    <span>Conversation Behavior</span>
+                    {showConversationBehavior ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-4">
+                  <ConversationSettings
+                    settings={conversationBehavior}
+                    onChange={setConversationBehavior}
+                    disabled={isLoading}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Audio Settings - Collapsible */}
+              <Collapsible open={showAudioSettings} onOpenChange={setShowAudioSettings}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between">
+                    <span>Audio Settings</span>
+                    {showAudioSettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-4">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>User Input Audio Format</Label>
+                      <Select
+                        value={audioSettings.userInputFormat}
+                        onValueChange={(value) => setAudioSettings({
+                          ...audioSettings,
+                          userInputFormat: value as UserInputAudioFormat,
+                        })}
+                        disabled={isLoading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select audio format" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {USER_INPUT_AUDIO_FORMATS.map((format) => (
+                            <SelectItem key={format.id} value={format.id}>
+                              <div className="flex flex-col">
+                                <span>{format.name}</span>
+                                <span className="text-xs text-muted-foreground">{format.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Audio format for speech recognition. Use &apos;Telephony&apos; for phone calls.
+                      </p>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </TabsContent>
 
-            <TabsContent value="prompt" className="space-y-4 mt-0">
+            <TabsContent value="prompt" className="space-y-6 mt-0">
+              {/* System Prompt - LLM settings removed, ElevenLabs uses GPT-5.1 by default */}
               <div className="space-y-2">
                 <Label htmlFor="prompt">System Prompt</Label>
                 {isFetchingPrompt ? (
@@ -274,12 +492,13 @@ export function EditAgentDialog({ agent, restaurantOrganizationId, onSuccess }: 
                     onChange={(e) => setPrompt(e.target.value)}
                     disabled={isLoading}
                     placeholder="Enter the system instructions for your agent. For example: You are a helpful restaurant assistant who can help customers make, modify, and cancel reservations..."
-                    rows={15}
+                    rows={12}
                     className="font-mono text-sm"
                   />
                 )}
                 <p className="text-xs text-muted-foreground">
                   Define how your agent should behave and respond to customers. This is the core instruction set for your AI agent.
+                  Restaurant hours are automatically included when synced from restaurant settings.
                 </p>
               </div>
             </TabsContent>
@@ -321,7 +540,7 @@ export function EditAgentDialog({ agent, restaurantOrganizationId, onSuccess }: 
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!name || !greeting || !selectedVoiceId || isLoading}
+            disabled={!name || !firstMessageSettings.defaultMessage || !(voiceSettings?.primaryVoice?.voiceId || selectedVoiceId) || isLoading}
             className="flex-1"
           >
             {isLoading ? 'Saving...' : 'Save Changes'}

@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
 import { Button } from '@/shared/components/ui/button';
 import { EditAgentDialog } from './EditAgentDialog';
 
@@ -33,6 +36,20 @@ interface AgentCardProps {
 export function AgentCard({ agent, restaurantName, restaurantTimezone, restaurantOrganizationId, onUpdate }: AgentCardProps) {
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairSuccess, setRepairSuccess] = useState(false);
+  const [isConnectingMenu, setIsConnectingMenu] = useState(false);
+  const [menuConnectSuccess, setMenuConnectSuccess] = useState(false);
+
+  // Query for The Account integration status
+  const integration = useQuery(api.integrations.getByProvider, {
+    restaurantId: agent.restaurantId as Id<'restaurants'>,
+    provider: 'the_account',
+  });
+
+  // Query for menu tool enabled status
+  const isMenuToolEnabled = useQuery(api.agentTools.isToolEnabled, {
+    agentId: agent._id as Id<'agents'>,
+    toolName: 'menu',
+  });
 
   const copyPhoneNumber = () => {
     navigator.clipboard.writeText(agent.phoneNumber);
@@ -70,6 +87,43 @@ export function AgentCard({ agent, restaurantName, restaurantTimezone, restauran
       setIsRepairing(false);
     }
   };
+
+  const toggleMenuTool = async () => {
+    setIsConnectingMenu(true);
+    setMenuConnectSuccess(false);
+
+    try {
+      const response = await fetch(`/api/elevenlabs/agents/${agent.elevenLabsAgentId}/connect-menu`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantId: agent.restaurantId,
+          convexAgentId: agent._id,
+          restaurantName: restaurantName,
+          enable: !isMenuToolEnabled,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update menu tool');
+      }
+
+      setMenuConnectSuccess(true);
+      onUpdate?.();
+
+      // Reset success message after 3 seconds
+      setTimeout(() => setMenuConnectSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error toggling menu tool:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update menu tool. Please try again.');
+    } finally {
+      setIsConnectingMenu(false);
+    }
+  };
+
+  // Determine if menu button should be shown
+  const showMenuToolButton = integration?.status === 'connected';
 
   return (
     <div className="rounded-xl bg-card p-6 transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
@@ -145,6 +199,24 @@ export function AgentCard({ agent, restaurantName, restaurantTimezone, restauran
         >
           {isRepairing ? 'Repairing...' : repairSuccess ? '✓ Repaired!' : '🔧 Repair Reservations'}
         </Button>
+
+        {showMenuToolButton && (
+          <Button
+            variant={isMenuToolEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={toggleMenuTool}
+            disabled={isConnectingMenu || menuConnectSuccess}
+            className="w-full"
+          >
+            {isConnectingMenu
+              ? 'Updating...'
+              : menuConnectSuccess
+                ? '✓ Updated!'
+                : isMenuToolEnabled
+                  ? '🍽️ Disable Menu'
+                  : '🍽️ Enable Menu'}
+          </Button>
+        )}
       </div>
     </div>
   );

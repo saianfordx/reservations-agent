@@ -1,8 +1,63 @@
 /**
- * Helper function to generate the complete agent prompt with both reservations and orders support
+ * Operating Hours Type
  */
-export function generateAgentPrompt(restaurantName: string): string {
-  return `You are a professional restaurant assistant for ${restaurantName}.
+export interface DayHours {
+  isOpen: boolean;
+  open?: string;
+  close?: string;
+}
+
+export interface OperatingHours {
+  monday: DayHours;
+  tuesday: DayHours;
+  wednesday: DayHours;
+  thursday: DayHours;
+  friday: DayHours;
+  saturday: DayHours;
+  sunday: DayHours;
+}
+
+/**
+ * Format operating hours into a readable string for the prompt
+ */
+function formatOperatingHours(hours: OperatingHours): string {
+  const days = [
+    { name: 'Monday', data: hours.monday },
+    { name: 'Tuesday', data: hours.tuesday },
+    { name: 'Wednesday', data: hours.wednesday },
+    { name: 'Thursday', data: hours.thursday },
+    { name: 'Friday', data: hours.friday },
+    { name: 'Saturday', data: hours.saturday },
+    { name: 'Sunday', data: hours.sunday },
+  ];
+
+  return days.map(({ name, data }) => {
+    if (!data.isOpen) {
+      return `- ${name}: Closed`;
+    }
+    // Convert 24h time to 12h format for better readability
+    const formatTime = (time?: string): string => {
+      if (!time) return '';
+      const [hours, minutes] = time.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const hour12 = hours % 12 || 12;
+      return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
+    };
+    return `- ${name}: ${formatTime(data.open)} to ${formatTime(data.close)}`;
+  }).join('\n');
+}
+
+/**
+ * Helper function to generate the complete agent prompt with both reservations and orders support
+ * @param restaurantName - The name of the restaurant
+ * @param operatingHours - Optional operating hours to include in the prompt
+ */
+export function generateAgentPrompt(restaurantName: string, operatingHours?: OperatingHours): string {
+  const hoursSection = operatingHours
+    ? `\n\n#Regular Restaurant Hours:\n${formatOperatingHours(operatingHours)}`
+    : '';
+
+  return `You are a professional restaurant assistant for ${restaurantName}.${hoursSection}
 
 CRITICAL FIRST STEP: At the START of EVERY conversation, you MUST call the get_current_datetime function to retrieve the current date and time. Use this information for all date calculations and validations throughout the conversation.
 
@@ -155,4 +210,56 @@ When a customer wants to modify or cancel an order:
 8. NEVER ask the customer for their order ID - always search by phone number
 
 Important: All tools (reservations and orders) will wait for a response before continuing. If there's an error, inform the customer and ask for valid information.`;
+}
+
+/**
+ * Generate menu tool instructions to append to the prompt when menu tool is enabled
+ */
+export function getMenuToolInstructions(): string {
+  return `
+
+## MENU INFORMATION
+
+You have access to the restaurant's real-time menu through the get_menu function.
+
+WHEN TO USE THE MENU TOOL:
+- When a customer asks "What's on the menu?" or "What do you have?"
+- When they ask about specific categories (appetizers, entrees, desserts, etc.)
+- When they want to know prices
+- When they ask about allergens or ingredients
+- When they ask about vegetarian/vegan/gluten-free options
+- Before taking a to-go order to verify items are available
+
+HOW TO USE MENU INFORMATION:
+1. Call get_menu to retrieve the current menu
+2. Present information clearly and concisely
+3. When asked about prices, always state the exact price
+4. Always mention allergen information when relevant
+5. If an item is not on the menu, politely inform the customer
+
+IMPORTANT:
+- The menu is fetched in real-time from the POS system
+- Only recommend items that appear in the menu response
+- Prices are accurate and up-to-date
+- If the menu fetch fails, apologize and offer to describe popular items from your knowledge base`;
+}
+
+/**
+ * Generate agent prompt with optional tool-specific instructions
+ * @param restaurantName - The name of the restaurant
+ * @param operatingHours - Optional operating hours to include in the prompt
+ * @param enabledTools - Object indicating which optional tools are enabled
+ */
+export function generateAgentPromptWithTools(
+  restaurantName: string,
+  operatingHours?: OperatingHours,
+  enabledTools?: { menu?: boolean }
+): string {
+  let prompt = generateAgentPrompt(restaurantName, operatingHours);
+
+  if (enabledTools?.menu) {
+    prompt += getMenuToolInstructions();
+  }
+
+  return prompt;
 }

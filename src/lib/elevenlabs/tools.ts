@@ -346,6 +346,28 @@ export const searchOrdersTool = (
   },
 });
 
+// ==================== MENU TOOL ====================
+
+export const getMenuTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'get_menu',
+  description: 'Retrieves the restaurant menu with categories, items, prices, descriptions, and allergen information. Call this when a customer asks about the menu, wants to know what items are available, asks about prices, or wants to know about ingredients or allergens.',
+  api_schema: {
+    description: 'This endpoint fetches the current restaurant menu from the POS system. Returns all active menu categories and items with their details including prices (in dollars), descriptions, and allergen warnings.',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/menu?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'No parameters required. The menu is automatically retrieved for the restaurant.',
+      properties: {},
+      required: [],
+    },
+  },
+});
+
 // ==================== COMBINED TOOL SETS ====================
 
 export function getAllReservationTools(
@@ -392,4 +414,21 @@ export function getAllTools(
     editOrderTool(webhookBaseUrl, restaurantId, agentId),
     cancelOrderTool(webhookBaseUrl, restaurantId, agentId),
   ];
+}
+
+/**
+ * Get all tools with optional menu tool included
+ * Use this when updating an agent to conditionally include the menu tool
+ */
+export function getAllToolsWithMenu(
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string,
+  includeMenuTool: boolean = false
+) {
+  const baseTools = getAllTools(webhookBaseUrl, restaurantId, agentId);
+  if (includeMenuTool) {
+    return [...baseTools, getMenuTool(webhookBaseUrl, restaurantId, agentId)];
+  }
+  return baseTools;
 }
