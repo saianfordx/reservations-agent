@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllTools } from '@/lib/elevenlabs/tools';
-import { generateAgentPrompt } from '@/lib/elevenlabs/agent-prompt';
+import { getAllToolsWithMenu } from '@/lib/elevenlabs/tools';
+import { generateAgentPromptWithTools } from '@/lib/elevenlabs/agent-prompt';
+import { getConvexClient } from '@/lib/convex-client';
+import { api } from '../../../../../../../convex/_generated/api';
+import { Id } from '../../../../../../../convex/_generated/dataModel';
 
 /**
  * Repair endpoint to fix agents that may have lost their tools configuration
@@ -22,9 +25,17 @@ export async function POST(
     }
 
     const webhookBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const convex = getConvexClient();
+
+    // Check if menu tool is enabled for this agent
+    const isMenuToolEnabled = await convex.query(api.agentTools.isToolEnabled, {
+      agentId: convexAgentId as Id<'agents'>,
+      toolName: 'menu',
+    });
 
     // Get ALL tools (both reservations and orders) with correct webhook URLs
-    const tools = getAllTools(webhookBaseUrl, restaurantId, convexAgentId);
+    // Include menu tool if it's enabled
+    const tools = getAllToolsWithMenu(webhookBaseUrl, restaurantId, convexAgentId, isMenuToolEnabled);
 
     // Fetch current agent configuration to preserve knowledge_base
     const getResponse = await fetch(
@@ -45,8 +56,9 @@ export async function POST(
 
     const currentAgent = await getResponse.json();
 
-    // Create the agent prompt using the helper function (includes menu validation)
-    const agentPrompt = generateAgentPrompt(restaurantName);
+    // Create the agent prompt using the helper function
+    // Include menu tool instructions if the menu tool is enabled
+    const agentPrompt = generateAgentPromptWithTools(restaurantName, undefined, { menu: isMenuToolEnabled });
 
     // Build the complete prompt config with both tools and knowledge_base
     const promptConfig: Record<string, unknown> = {

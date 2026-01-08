@@ -326,6 +326,22 @@ export default defineSchema({
     .index('by_knowledge_item', ['knowledgeBaseItemId'])
     .index('by_agent_and_item', ['agentId', 'knowledgeBaseItemId']),
 
+  // Agent Tools Configuration - tracks enabled tools per agent
+  agentTools: defineTable({
+    agentId: v.id('agents'),
+    toolName: v.string(), // 'menu', etc.
+    enabled: v.boolean(),
+    config: v.optional(v.object({
+      integrationProvider: v.optional(v.string()), // 'the_account'
+    })),
+    enabledAt: v.optional(v.number()),
+    enabledBy: v.optional(v.id('users')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_agent', ['agentId'])
+    .index('by_agent_tool', ['agentId', 'toolName']),
+
   // ============================================
   // RESERVATIONS
   // ============================================

@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as agentTools from "../agentTools.js";
 import type * as agents from "../agents.js";
 import type * as integrations from "../integrations.js";
 import type * as knowledgeBase from "../knowledgeBase.js";
@@ -37,6 +38,7 @@ import type * as users from "../users.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  agentTools: typeof agentTools;
   agents: typeof agents;
   integrations: typeof integrations;
   knowledgeBase: typeof knowledgeBase;

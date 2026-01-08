@@ -211,3 +211,55 @@ When a customer wants to modify or cancel an order:
 
 Important: All tools (reservations and orders) will wait for a response before continuing. If there's an error, inform the customer and ask for valid information.`;
 }
+
+/**
+ * Generate menu tool instructions to append to the prompt when menu tool is enabled
+ */
+export function getMenuToolInstructions(): string {
+  return `
+
+## MENU INFORMATION
+
+You have access to the restaurant's real-time menu through the get_menu function.
+
+WHEN TO USE THE MENU TOOL:
+- When a customer asks "What's on the menu?" or "What do you have?"
+- When they ask about specific categories (appetizers, entrees, desserts, etc.)
+- When they want to know prices
+- When they ask about allergens or ingredients
+- When they ask about vegetarian/vegan/gluten-free options
+- Before taking a to-go order to verify items are available
+
+HOW TO USE MENU INFORMATION:
+1. Call get_menu to retrieve the current menu
+2. Present information clearly and concisely
+3. When asked about prices, always state the exact price
+4. Always mention allergen information when relevant
+5. If an item is not on the menu, politely inform the customer
+
+IMPORTANT:
+- The menu is fetched in real-time from the POS system
+- Only recommend items that appear in the menu response
+- Prices are accurate and up-to-date
+- If the menu fetch fails, apologize and offer to describe popular items from your knowledge base`;
+}
+
+/**
+ * Generate agent prompt with optional tool-specific instructions
+ * @param restaurantName - The name of the restaurant
+ * @param operatingHours - Optional operating hours to include in the prompt
+ * @param enabledTools - Object indicating which optional tools are enabled
+ */
+export function generateAgentPromptWithTools(
+  restaurantName: string,
+  operatingHours?: OperatingHours,
+  enabledTools?: { menu?: boolean }
+): string {
+  let prompt = generateAgentPrompt(restaurantName, operatingHours);
+
+  if (enabledTools?.menu) {
+    prompt += getMenuToolInstructions();
+  }
+
+  return prompt;
+}
