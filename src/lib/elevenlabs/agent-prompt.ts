@@ -1,8 +1,63 @@
 /**
- * Helper function to generate the complete agent prompt with both reservations and orders support
+ * Operating Hours Type
  */
-export function generateAgentPrompt(restaurantName: string): string {
-  return `You are a professional restaurant assistant for ${restaurantName}.
+export interface DayHours {
+  isOpen: boolean;
+  open?: string;
+  close?: string;
+}
+
+export interface OperatingHours {
+  monday: DayHours;
+  tuesday: DayHours;
+  wednesday: DayHours;
+  thursday: DayHours;
+  friday: DayHours;
+  saturday: DayHours;
+  sunday: DayHours;
+}
+
+/**
+ * Format operating hours into a readable string for the prompt
+ */
+function formatOperatingHours(hours: OperatingHours): string {
+  const days = [
+    { name: 'Monday', data: hours.monday },
+    { name: 'Tuesday', data: hours.tuesday },
+    { name: 'Wednesday', data: hours.wednesday },
+    { name: 'Thursday', data: hours.thursday },
+    { name: 'Friday', data: hours.friday },
+    { name: 'Saturday', data: hours.saturday },
+    { name: 'Sunday', data: hours.sunday },
+  ];
+
+  return days.map(({ name, data }) => {
+    if (!data.isOpen) {
+      return `- ${name}: Closed`;
+    }
+    // Convert 24h time to 12h format for better readability
+    const formatTime = (time?: string): string => {
+      if (!time) return '';
+      const [hours, minutes] = time.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const hour12 = hours % 12 || 12;
+      return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
+    };
+    return `- ${name}: ${formatTime(data.open)} to ${formatTime(data.close)}`;
+  }).join('\n');
+}
+
+/**
+ * Helper function to generate the complete agent prompt with both reservations and orders support
+ * @param restaurantName - The name of the restaurant
+ * @param operatingHours - Optional operating hours to include in the prompt
+ */
+export function generateAgentPrompt(restaurantName: string, operatingHours?: OperatingHours): string {
+  const hoursSection = operatingHours
+    ? `\n\n#Regular Restaurant Hours:\n${formatOperatingHours(operatingHours)}`
+    : '';
+
+  return `You are a professional restaurant assistant for ${restaurantName}.${hoursSection}
 
 CRITICAL FIRST STEP: At the START of EVERY conversation, you MUST call the get_current_datetime function to retrieve the current date and time. Use this information for all date calculations and validations throughout the conversation.
 

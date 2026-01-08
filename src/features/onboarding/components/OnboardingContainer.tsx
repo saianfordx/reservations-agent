@@ -100,7 +100,7 @@ export function OnboardingContainer() {
 
       return (
         <RestaurantStepWrapper
-          organizationId={firstOrg.clerkOrganizationId}
+          organizationId={firstOrg.clerkOrganizationId || ''}
         />
       );
 

@@ -7,7 +7,8 @@ export default defineSchema({
   // ============================================
 
   users: defineTable({
-    clerkId: v.string(),
+    clerkId: v.optional(v.string()), // Made optional for data cleanup
+    cognitoId: v.optional(v.string()), // Temporary for Cognito test data cleanup
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
@@ -26,7 +27,8 @@ export default defineSchema({
   // ============================================
 
   organizations: defineTable({
-    clerkOrganizationId: v.string(),
+    clerkOrganizationId: v.optional(v.string()), // Made optional for data cleanup
+    organizationId: v.optional(v.string()), // Temporary for Cognito test data cleanup
     name: v.string(),
     slug: v.string(),
     imageUrl: v.optional(v.string()),
@@ -51,8 +53,11 @@ export default defineSchema({
   organizationMemberships: defineTable({
     organizationId: v.id('organizations'),
     userId: v.id('users'),
-    clerkOrganizationId: v.string(),
-    clerkUserId: v.string(),
+    clerkOrganizationId: v.optional(v.string()), // Made optional for data cleanup
+    clerkUserId: v.optional(v.string()), // Made optional for data cleanup
+    // Temporary fields for Cognito test data cleanup
+    cognitoUserId: v.optional(v.string()),
+    externalOrgId: v.optional(v.string()),
     role: v.string(), // org:admin, org:member, or custom role (synced from Clerk)
     permissions: v.array(v.string()), // Array of permission strings (synced from Clerk)
     createdAt: v.number(),
@@ -172,17 +177,88 @@ export default defineSchema({
 
     // ElevenLabs IDs
     elevenLabsAgentId: v.string(),
-    elevenLabsVoiceId: v.string(),
+    elevenLabsVoiceId: v.string(), // Deprecated - use voiceSettings.primaryVoice.voiceId
     elevenLabsPhoneNumberId: v.optional(v.string()),
     phoneNumber: v.string(),
 
     // Agent Configuration
     name: v.string(),
-    voiceName: v.string(),
-    language: v.string(),
+    voiceName: v.string(), // Deprecated - use voiceSettings.primaryVoice.voiceName
+    language: v.string(), // Deprecated - use languages.defaultLanguage
     prompt: v.optional(v.string()), // Agent's system prompt/instructions
 
-    // Agent Behavior Settings
+    // Language Settings
+    languages: v.optional(v.object({
+      defaultLanguage: v.string(), // 'en', 'es', etc.
+      additionalLanguages: v.array(v.string()),
+    })),
+
+    // Voice Settings (expanded)
+    voiceSettings: v.optional(v.object({
+      primaryVoice: v.object({
+        voiceId: v.string(),
+        voiceName: v.string(),
+        language: v.string(),
+        stability: v.number(), // 0-1
+        speed: v.number(), // 0.5-2
+        similarityBoost: v.number(), // 0-1
+      }),
+      additionalVoices: v.array(v.object({
+        voiceId: v.string(),
+        voiceName: v.string(),
+        voiceLabel: v.string(), // e.g., "English Voice"
+        language: v.string(),
+        stability: v.number(),
+        speed: v.number(),
+        similarityBoost: v.number(),
+      })),
+      ttsModelId: v.string(), // 'eleven_flash_v2', 'eleven_turbo_v2', etc.
+    })),
+
+    // LLM Settings
+    llmSettings: v.optional(v.object({
+      provider: v.string(), // 'openai', 'anthropic', 'google', 'custom'
+      model: v.string(), // 'gpt-4o', 'claude-3-5-sonnet', 'gemini-2.0-flash', etc.
+      temperature: v.number(), // 0-1
+      reasoningEffort: v.optional(v.string()), // 'none', 'low', 'medium', 'high'
+      maxTokens: v.number(), // -1 for unlimited
+      backupLlm: v.optional(v.object({
+        enabled: v.boolean(),
+        model: v.string(),
+      })),
+    })),
+
+    // Conversational Behavior
+    conversationBehavior: v.optional(v.object({
+      eagerness: v.string(), // 'patient', 'normal', 'eager'
+      turnTimeout: v.number(), // seconds
+      silenceEndCallTimeout: v.number(), // -1 for disabled
+      maxDuration: v.number(), // seconds
+      softTimeout: v.optional(v.object({
+        enabled: v.boolean(),
+        timeoutSeconds: v.number(),
+        message: v.string(),
+      })),
+    })),
+
+    // First Message Settings
+    firstMessageSettings: v.optional(v.object({
+      defaultMessage: v.string(),
+      interruptible: v.boolean(),
+      translateToAll: v.boolean(),
+      perLanguageMessages: v.optional(v.array(v.object({
+        language: v.string(),
+        message: v.string(),
+      }))),
+    })),
+
+    // Audio Settings
+    audioSettings: v.optional(v.object({
+      userInputFormat: v.string(), // 'pcm_16000', 'pcm_8000', 'ulaw_8000'
+      agentOutputFormat: v.optional(v.string()),
+    })),
+
+    // Agent Behavior Settings (deprecated - use conversationBehavior)
     agentConfig: v.object({
       greeting: v.string(),
       conversationStyle: v.string(),
