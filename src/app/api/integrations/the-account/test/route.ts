@@ -36,8 +36,7 @@ export async function POST(req: NextRequest) {
     const isDevMode = process.env.DEV_MODE === 'true';
     const webhookUrl = isDevMode
       ? 'http://localhost:9090/api/v2/phone-orders/webhook'
-      : `https://${tenantSlug}.theaccount.app/api/v2/phone-orders/webhook`;
-
+      :`https://the-account.vortex.studio/tn/${tenantSlug}/api/v2/phone-orders/webhook`;
 
     // Test the connection with a HEAD request
     // (or OPTIONS to avoid creating an order)

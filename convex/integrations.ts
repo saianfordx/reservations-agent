@@ -264,7 +264,8 @@ export const forwardOrderToTheAccount = internalAction({
     const isDevMode: boolean = process.env.DEV_MODE === 'true';
     const webhookUrl: string = isDevMode
       ? 'http://localhost:9090/api/v2/phone-orders/webhook'
-      : `https://${integration.tenantSlug}.theaccount.app/api/v2/phone-orders/webhook`;
+      : `https://the-account.vortex.studio/tn/${integration.tenantSlug}/api/v2/phone-orders/webhook`;
+
 
     console.log(`[TheAccount] Forwarding order ${args.orderData.orderId} to ${webhookUrl} (DEV_MODE=${isDevMode})`);
 

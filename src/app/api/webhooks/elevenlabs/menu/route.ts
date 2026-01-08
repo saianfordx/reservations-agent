@@ -110,7 +110,8 @@ export async function POST(req: NextRequest) {
     const isDevMode = process.env.DEV_MODE === 'true';
     const menuUrl = isDevMode
       ? 'http://localhost:9090/api/v2/phone-orders/menu'
-      : `https://${integration.tenantSlug}.theaccount.app/api/v2/phone-orders/menu`;
+      : `https://the-account.vortex.studio/tn/${integration.tenantSlug}/api/v2/phone-orders/menu`;
+
 
     console.log(`[Menu Webhook] Fetching from ${menuUrl} (DEV_MODE=${isDevMode})`);
 
