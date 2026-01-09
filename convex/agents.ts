@@ -332,7 +332,9 @@ export const syncPromptWithHours = action({
     // Using v.any() to avoid TypeScript deep type instantiation issues
     // The operatingHours structure is validated at the API layer
     operatingHours: v.any(),
-    newPrompt: v.string(), // Generated prompt from the client/API side
+    // Per-agent prompts: Record<agentId, prompt>
+    // Each agent gets its own prompt with their specific persona name
+    agentPrompts: v.any(),
   },
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -348,14 +350,23 @@ export const syncPromptWithHours = action({
       return { success: true, message: 'No agents to sync' };
     }
 
-    // Update each agent
+    const agentPrompts = args.agentPrompts as Record<string, string>;
+
+    // Update each agent with their specific prompt
     const results = await Promise.all(
       agents.map(async (agent) => {
         try {
+          // Get the prompt for this specific agent
+          const prompt = agentPrompts[agent._id];
+          if (!prompt) {
+            console.warn(`No prompt found for agent ${agent._id}, skipping`);
+            return { agentId: agent._id, success: false, error: 'No prompt provided' };
+          }
+
           // Update in Convex
           await ctx.runMutation(internal.agents.updatePromptInternal, {
             agentId: agent._id,
-            prompt: args.newPrompt,
+            prompt: prompt,
           });
 
           // Update in ElevenLabs
@@ -371,7 +382,7 @@ export const syncPromptWithHours = action({
                 conversation_config: {
                   agent: {
                     prompt: {
-                      prompt: args.newPrompt,
+                      prompt: prompt,
                     },
                   },
                 },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllToolsWithMenu } from '@/lib/elevenlabs/tools';
-import { generateAgentPromptWithTools } from '@/lib/elevenlabs/agent-prompt';
+import { generateAgentPromptWithTools, OperatingHours } from '@/lib/elevenlabs/agent-prompt';
 import { getConvexClient } from '@/lib/convex-client';
 import { api } from '../../../../../../../convex/_generated/api';
 import { Id } from '../../../../../../../convex/_generated/dataModel';
@@ -28,10 +28,43 @@ export async function POST(
     const convex = getConvexClient();
 
     // Check if menu tool is enabled for this agent
-    const isMenuToolEnabled = await convex.query(api.agentTools.isToolEnabled, {
-      agentId: convexAgentId as Id<'agents'>,
-      toolName: 'menu',
-    });
+    let isMenuToolEnabled = false;
+    try {
+      isMenuToolEnabled = await convex.query(api.agentTools.isToolEnabled, {
+        agentId: convexAgentId as Id<'agents'>,
+        toolName: 'menu',
+      });
+    } catch (e) {
+      console.error('Error checking menu tool status:', e);
+      // Default to false if check fails
+    }
+
+    // Fetch the agent to get the agent name
+    let agentName = 'Assistant';
+    try {
+      const agents = await convex.query(api.agents.getByRestaurantServerSide, {
+        restaurantId: restaurantId as Id<'restaurants'>,
+      });
+      const agent = agents.find((a: { _id: string; name?: string }) => a._id === convexAgentId);
+      if (agent?.name) {
+        agentName = agent.name;
+      }
+    } catch (e) {
+      console.error('Error fetching agent:', e);
+      // Use default name if fetch fails
+    }
+
+    // Fetch the restaurant to get operating hours
+    let operatingHours: OperatingHours | undefined;
+    try {
+      const restaurant = await convex.query(api.restaurants.getRestaurantPublic, {
+        id: restaurantId as Id<'restaurants'>,
+      });
+      operatingHours = restaurant?.operatingHours as OperatingHours | undefined;
+    } catch (e) {
+      console.error('Error fetching restaurant:', e);
+      // Continue without operating hours if fetch fails
+    }
 
     // Get ALL tools (both reservations and orders) with correct webhook URLs
     // Include menu tool if it's enabled
@@ -57,8 +90,8 @@ export async function POST(
     const currentAgent = await getResponse.json();
 
     // Create the agent prompt using the helper function
-    // Include menu tool instructions if the menu tool is enabled
-    const agentPrompt = generateAgentPromptWithTools(restaurantName, undefined, { menu: isMenuToolEnabled });
+    // Include agent name, operating hours, and menu tool instructions if enabled
+    const agentPrompt = generateAgentPromptWithTools(restaurantName, agentName, operatingHours, { menu: isMenuToolEnabled });
 
     // Build the complete prompt config with both tools and knowledge_base
     const promptConfig: Record<string, unknown> = {

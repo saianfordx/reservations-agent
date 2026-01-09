@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllTools } from '@/lib/elevenlabs/tools';
 import { generateAgentPrompt, OperatingHours } from '@/lib/elevenlabs/agent-prompt';
+import { getConvexClient } from '@/lib/convex-client';
+import { api } from '../../../../../../convex/_generated/api';
+import { Id } from '../../../../../../convex/_generated/dataModel';
 import {
   LanguageSettings,
   VoiceSettings,
@@ -53,9 +56,24 @@ export async function POST(req: NextRequest) {
     }
 
     const webhookBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const convex = getConvexClient();
 
-    // Create the agent prompt using the helper function (with optional hours)
-    const agentPrompt = generateAgentPrompt(restaurantName, operatingHours);
+    // Fetch restaurant to get operating hours if not provided
+    let effectiveOperatingHours = operatingHours;
+    if (!effectiveOperatingHours) {
+      const restaurant = await convex.query(api.restaurants.getRestaurantPublic, {
+        id: restaurantId as Id<'restaurants'>,
+      });
+      if (restaurant?.operatingHours) {
+        effectiveOperatingHours = restaurant.operatingHours as OperatingHours;
+      }
+    }
+
+    // Use agent name or default to "Assistant"
+    const effectiveAgentName = agentName || 'Assistant';
+
+    // Create the agent prompt using the helper function (with agent name and hours)
+    const agentPrompt = generateAgentPrompt(restaurantName, effectiveAgentName, effectiveOperatingHours);
 
     // Get ALL tools (both reservations and orders)
     // Note: We use 'pending' as agentId placeholder - will be updated after Convex save

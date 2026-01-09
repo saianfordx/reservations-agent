@@ -3,7 +3,7 @@ import { getConvexClient } from '@/lib/convex-client';
 import { api } from '../../../../../../../convex/_generated/api';
 import { Id } from '../../../../../../../convex/_generated/dataModel';
 import { getAllToolsWithMenu } from '@/lib/elevenlabs/tools';
-import { generateAgentPromptWithTools } from '@/lib/elevenlabs/agent-prompt';
+import { generateAgentPromptWithTools, OperatingHours } from '@/lib/elevenlabs/agent-prompt';
 
 /**
  * POST: Enable or disable the menu tool for an agent
@@ -50,7 +50,34 @@ export async function POST(
       config: enable ? { integrationProvider: 'the_account' } : undefined,
     });
 
-    // 3. Fetch current agent configuration from ElevenLabs
+    // 3. Fetch the agent to get the agent name
+    let agentName = 'Assistant';
+    try {
+      const agents = await convex.query(api.agents.getByRestaurantServerSide, {
+        restaurantId: restaurantId as Id<'restaurants'>,
+      });
+      const agent = agents.find((a: { _id: string; name?: string }) => a._id === convexAgentId);
+      if (agent?.name) {
+        agentName = agent.name;
+      }
+    } catch (e) {
+      console.error('Error fetching agent:', e);
+      // Use default name if fetch fails
+    }
+
+    // 4. Fetch the restaurant to get operating hours
+    let operatingHours: OperatingHours | undefined;
+    try {
+      const restaurant = await convex.query(api.restaurants.getRestaurantPublic, {
+        id: restaurantId as Id<'restaurants'>,
+      });
+      operatingHours = restaurant?.operatingHours as OperatingHours | undefined;
+    } catch (e) {
+      console.error('Error fetching restaurant:', e);
+      // Continue without operating hours if fetch fails
+    }
+
+    // 5. Fetch current agent configuration from ElevenLabs
     const getResponse = await fetch(
       `https://api.elevenlabs.io/v1/convai/agents/${elevenLabsAgentId}`,
       {
@@ -69,13 +96,13 @@ export async function POST(
 
     const currentAgent = await getResponse.json();
 
-    // 4. Build updated tools array
+    // 6. Build updated tools array
     const tools = getAllToolsWithMenu(webhookBaseUrl, restaurantId, convexAgentId, enable);
 
-    // 5. Build updated prompt with menu instructions if enabled
-    const agentPrompt = generateAgentPromptWithTools(restaurantName, undefined, { menu: enable });
+    // 7. Build updated prompt with agent name, operating hours, and menu instructions if enabled
+    const agentPrompt = generateAgentPromptWithTools(restaurantName, agentName, operatingHours, { menu: enable });
 
-    // 6. Build the complete prompt config
+    // 8. Build the complete prompt config
     const promptConfig: Record<string, unknown> = {
       prompt: agentPrompt,
       llm: 'gpt-4o-mini',
@@ -87,7 +114,7 @@ export async function POST(
       promptConfig.knowledge_base = currentAgent.conversation_config.agent.prompt.knowledge_base;
     }
 
-    // 7. Update ElevenLabs agent
+    // 9. Update ElevenLabs agent
     const response = await fetch(
       `https://api.elevenlabs.io/v1/convai/agents/${elevenLabsAgentId}`,
       {

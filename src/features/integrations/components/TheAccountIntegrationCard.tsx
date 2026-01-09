@@ -56,8 +56,8 @@ export function TheAccountIntegrationCard({
   const isConnected = integration?.status === 'connected';
   const hasError = integration?.status === 'error';
 
-  // Validate API key format (should start with 'po_')
-  const isValidApiKey = apiKey.startsWith('po_') && apiKey.length > 10;
+  // Validate API key format
+  const isValidApiKey = apiKey.length > 10;
   const isValidTenantSlug = /^[a-z0-9-]+$/.test(tenantSlug) && tenantSlug.length > 0;
 
   const handleOpenDialog = () => {
@@ -268,7 +268,7 @@ export function TheAccountIntegrationCard({
                 <Input
                   id="apiKey"
                   type={showApiKey ? 'text' : 'password'}
-                  placeholder="po_..."
+                  placeholder="Enter your API key"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   className="pr-10"
@@ -282,7 +282,7 @@ export function TheAccountIntegrationCard({
                 </button>
               </div>
               {apiKey && !isValidApiKey && (
-                <p className="text-xs text-red-500">API key should start with &quot;po_&quot;</p>
+                <p className="text-xs text-red-500">API key must be at least 10 characters</p>
               )}
               <p className="text-xs text-muted-foreground">
                 Generate in The Account dashboard under Phone Orders settings

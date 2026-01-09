@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateAgentPrompt, OperatingHours } from '@/lib/elevenlabs/agent-prompt';
-import { fetchAction } from 'convex/nextjs';
+import { fetchAction, fetchQuery } from 'convex/nextjs';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 
@@ -21,8 +21,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate the new prompt with the updated hours
-    const newPrompt = generateAgentPrompt(restaurantName, operatingHours as OperatingHours);
+    // Fetch all agents for this restaurant to get their names
+    const agents = await fetchQuery(api.agents.getByRestaurantServerSide, {
+      restaurantId: restaurantId as Id<'restaurants'>,
+    });
+
+    // Generate prompts per-agent (each agent may have a different persona name)
+    const agentPrompts: Record<string, string> = {};
+    for (const agent of agents) {
+      const agentName = agent.name || 'Assistant';
+      agentPrompts[agent._id] = generateAgentPrompt(restaurantName, agentName, operatingHours as OperatingHours);
+    }
 
     // Call the Convex action to sync all agents for this restaurant
     // @ts-expect-error - Type instantiation is excessively deep due to complex Convex action type inference
@@ -30,7 +39,7 @@ export async function POST(req: NextRequest) {
       restaurantId: restaurantId as Id<'restaurants'>,
       restaurantName,
       operatingHours,
-      newPrompt,
+      agentPrompts, // Now passing per-agent prompts
     });
 
     return NextResponse.json({

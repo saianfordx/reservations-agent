@@ -15,14 +15,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate API key format
-    if (!apiKey.startsWith('po_')) {
-      return NextResponse.json(
-        { success: false, message: 'Invalid API key format. API key should start with "po_"' },
-        { status: 400 }
-      );
-    }
-
     // Validate tenant slug format (no spaces, lowercase)
     const slugRegex = /^[a-z0-9-]+$/;
     if (!slugRegex.test(tenantSlug)) {
