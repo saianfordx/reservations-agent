@@ -109,8 +109,8 @@ export async function POST(req: NextRequest) {
     // 2. Determine API URL based on DEV_MODE
     const isDevMode = process.env.DEV_MODE === 'true';
     const menuUrl = isDevMode
-      ? 'http://localhost:9090/api/v2/phone-orders/menu'
-      : `https://the-account.vortex.studio/tn/${integration.tenantSlug}/api/v2/phone-orders/menu`;
+      ? 'http://localhost:9090/api/v2/webhook/nerdvi/menu'
+      : `https://the-account.vortex.studio/tn/${integration.tenantSlug}/api/v2/webhook/nerdvi/menu`;
 
 
     console.log(`[Menu Webhook] Fetching from ${menuUrl} (DEV_MODE=${isDevMode})`);
