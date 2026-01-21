@@ -195,6 +195,10 @@ export const createOrderTool = (
           items: {
             type: 'object',
             properties: {
+              menu_item_id: {
+                type: 'string',
+                description: 'The menu_item_id from the get_menu response. REQUIRED when menu tool is enabled.',
+              },
               name: {
                 type: 'string',
                 description: 'Name of the menu item',
@@ -254,6 +258,10 @@ export const editOrderTool = (
           items: {
             type: 'object',
             properties: {
+              menu_item_id: {
+                type: 'string',
+                description: 'The menu_item_id from the get_menu response. REQUIRED when menu tool is enabled.',
+              },
               name: {
                 type: 'string',
                 description: 'Name of the menu item',

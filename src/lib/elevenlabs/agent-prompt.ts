@@ -417,7 +417,7 @@ WHEN TO USE THE MENU TOOL:
 - When they want to know prices
 - When they ask about allergens or ingredients
 - When they ask about vegetarian/vegan/gluten-free options
-- Before taking a to-go order to verify items are available
+- ALWAYS before taking a to-go order to get the menu_item_id values
 
 HOW TO USE MENU INFORMATION:
 1. Call get_menu to retrieve the current menu
@@ -425,6 +425,14 @@ HOW TO USE MENU INFORMATION:
 3. When asked about prices, always state the exact price
 4. Always mention allergen information when relevant
 5. If an item is not on the menu, politely inform the customer
+
+CRITICAL - ORDERING WITH MENU ITEM IDs:
+- Each menu item includes a [menu_item_id: xxx] value
+- When creating orders with create_order, you MUST include the menu_item_id for each item
+- Example: If menu shows "Coyota [menu_item_id: 69667e8ff9e778bb727245d1]: $50.00"
+  Then when ordering, use: { "menu_item_id": "69667e8ff9e778bb727245d1", "name": "Coyota", "quantity": 1 }
+- The menu_item_id connects the order to the restaurant's POS system
+- If you don't have the menu_item_id, call get_menu first before placing the order
 
 IMPORTANT:
 - The menu is fetched in real-time from the POS system

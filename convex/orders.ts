@@ -45,6 +45,7 @@ export const create = mutation({
     customerPhone: v.string(),
     items: v.array(
       v.object({
+        menuItemId: v.optional(v.string()), // The Account POS menu item ID
         name: v.string(),
         quantity: v.number(),
         specialInstructions: v.optional(v.string()),
@@ -200,6 +201,7 @@ export const update = mutation({
     items: v.optional(
       v.array(
         v.object({
+          menuItemId: v.optional(v.string()), // The Account POS menu item ID
           name: v.string(),
           quantity: v.number(),
           specialInstructions: v.optional(v.string()),
@@ -591,6 +593,7 @@ export const createManual = mutation({
     customerPhone: v.string(),
     items: v.array(
       v.object({
+        menuItemId: v.optional(v.string()), // The Account POS menu item ID
         name: v.string(),
         quantity: v.number(),
         specialInstructions: v.optional(v.string()),
@@ -749,6 +752,7 @@ export const updateManual = mutation({
     items: v.optional(
       v.array(
         v.object({
+          menuItemId: v.optional(v.string()), // The Account POS menu item ID
           name: v.string(),
           quantity: v.number(),
           specialInstructions: v.optional(v.string()),

@@ -4,6 +4,8 @@ import { api } from '../../../../../../../convex/_generated/api';
 import { Id } from '../../../../../../../convex/_generated/dataModel';
 
 type OrderItem = {
+  menu_item_id?: string;          // From ElevenLabs - The Account POS menu item ID
+  menuItemId?: string;            // For Convex (camelCase)
   name: string;
   quantity: number;
   special_instructions?: string;  // From ElevenLabs (snake_case)
@@ -101,8 +103,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Transform items to match Convex schema (special_instructions -> specialInstructions)
+    // Transform items to match Convex schema (snake_case -> camelCase)
     const transformedItems = items.map((item: OrderItem) => ({
+      menuItemId: item.menu_item_id || item.menuItemId,  // Pass through The Account menu item ID
       name: item.name,
       quantity: item.quantity,
       specialInstructions: item.special_instructions || item.specialInstructions,

@@ -23,17 +23,19 @@ interface MenuResponse {
 }
 
 /**
- * Format price from cents to dollars
+ * Format price for display (prices from The Account are already in dollars)
  */
-function formatPrice(priceInCents: number): string {
-  return `$${(priceInCents / 100).toFixed(2)}`;
+function formatPrice(price: number): string {
+  return `$${price.toFixed(2)}`;
 }
 
 /**
  * Format menu data into a readable string for the AI agent
+ * Includes menu_item_id for each item so the agent can reference it when placing orders
  */
 function formatMenuForAgent(menuData: MenuResponse): string {
   const lines: string[] = ['Here is our current menu:\n'];
+  lines.push('IMPORTANT: When placing orders, use the menu_item_id shown for each item.\n');
 
   for (const category of menuData.categories) {
     lines.push(`\n## ${category.name}`);
@@ -41,7 +43,8 @@ function formatMenuForAgent(menuData: MenuResponse): string {
     for (const item of category.items) {
       if (!item.active) continue; // Skip inactive items
 
-      let itemLine = `- ${item.name}: ${formatPrice(item.price)}`;
+      // Include menu_item_id so agent can use it when ordering
+      let itemLine = `- ${item.name} [menu_item_id: ${item.id}]: ${formatPrice(item.price)}`;
       if (item.description) {
         itemLine += ` - ${item.description}`;
       }

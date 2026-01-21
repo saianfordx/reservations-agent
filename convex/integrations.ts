@@ -231,6 +231,7 @@ export const forwardOrderToTheAccount = internalAction({
       customerPhone: v.string(),
       items: v.array(
         v.object({
+          menuItemId: v.optional(v.string()), // The Account POS menu item ID
           name: v.string(),
           quantity: v.number(),
           specialInstructions: v.optional(v.string()),
@@ -276,7 +277,8 @@ export const forwardOrderToTheAccount = internalAction({
       customer_name: args.orderData.customerName,
       customer_phone: args.orderData.customerPhone,
       items: args.orderData.items.map((item) => ({
-        menu_item_id: `item-${item.name.toLowerCase().replace(/\s+/g, '-')}`,
+        // Use real menu_item_id from The Account if available, otherwise generate fallback
+        menu_item_id: item.menuItemId || `unknown-${item.name.toLowerCase().replace(/\s+/g, '-')}`,
         name: item.name,
         quantity: item.quantity,
         special_instructions: item.specialInstructions,

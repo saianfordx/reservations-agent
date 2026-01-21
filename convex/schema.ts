@@ -417,6 +417,7 @@ export default defineSchema({
     // Order Details
     items: v.array(
       v.object({
+        menuItemId: v.optional(v.string()), // The Account POS menu item ID (for integration)
         name: v.string(),
         quantity: v.number(),
         specialInstructions: v.optional(v.string()),
