@@ -103,9 +103,11 @@ export async function POST(
     const agentPrompt = generateAgentPromptWithTools(restaurantName, agentName, operatingHours, { menu: enable });
 
     // 8. Build the complete prompt config
+    // Note: reasoning_effort must be null for gpt-4o-mini (it doesn't support reasoning)
     const promptConfig: Record<string, unknown> = {
       prompt: agentPrompt,
       llm: 'gpt-4o-mini',
+      reasoning_effort: null,
       tools: tools,
     };
 

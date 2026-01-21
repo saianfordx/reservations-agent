@@ -30,7 +30,7 @@ export async function POST(
     // Check if menu tool is enabled for this agent
     let isMenuToolEnabled = false;
     try {
-      isMenuToolEnabled = await convex.query(api.agentTools.isToolEnabled, {
+      isMenuToolEnabled = await convex.query(api.agentTools.isToolEnabledServerSide, {
         agentId: convexAgentId as Id<'agents'>,
         toolName: 'menu',
       });
@@ -94,9 +94,11 @@ export async function POST(
     const agentPrompt = generateAgentPromptWithTools(restaurantName, agentName, operatingHours, { menu: isMenuToolEnabled });
 
     // Build the complete prompt config with both tools and knowledge_base
+    // Note: reasoning_effort must be null for gpt-4o-mini (it doesn't support reasoning)
     const promptConfig: Record<string, unknown> = {
       prompt: agentPrompt,
       llm: 'gpt-4o-mini',
+      reasoning_effort: null,
       tools: tools,
     };
 

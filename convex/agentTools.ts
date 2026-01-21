@@ -45,6 +45,27 @@ export const isToolEnabled = query({
 });
 
 /**
+ * Check if a specific tool is enabled (server-side - no auth required)
+ * Use this from server-side API routes where auth is handled by Next.js
+ */
+export const isToolEnabledServerSide = query({
+  args: {
+    agentId: v.id('agents'),
+    toolName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const tool = await ctx.db
+      .query('agentTools')
+      .withIndex('by_agent_tool', (q) =>
+        q.eq('agentId', args.agentId).eq('toolName', args.toolName)
+      )
+      .first();
+
+    return tool?.enabled ?? false;
+  },
+});
+
+/**
  * Check if a specific tool is enabled (internal - no auth, for webhooks)
  */
 export const isToolEnabledInternal = internalQuery({
