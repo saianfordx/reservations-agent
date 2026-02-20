@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
-import { getConvexClient } from '@/lib/convex-client';
-import { api } from '../../../../../../convex/_generated/api';
-import { Id } from '../../../../../../convex/_generated/dataModel';
 
 /**
  * Webhook endpoint for ElevenLabs agent to send SMS messages via Twilio
@@ -38,23 +35,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get the agent to use its phone number as the "from" number
-    const convex = getConvexClient();
-    const agent = await convex.query(api.agents.getAgentServerSide, {
-      id: agentId as Id<'agents'>,
-    });
-
-    if (!agent) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Agent not found.',
-        },
-        { status: 404 }
-      );
-    }
-
-    // Send SMS via Twilio
+    // Send SMS via Twilio using toll-free number
     const client = twilio(
       process.env.TWILIO_ACCOUNT_SID!,
       process.env.TWILIO_AUTH_TOKEN!
@@ -62,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const smsResult = await client.messages.create({
       to: phone,
-      from: agent.phoneNumber,
+      from: '+18556482289',
       body: message,
     });
 
