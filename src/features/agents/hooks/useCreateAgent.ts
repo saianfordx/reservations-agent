@@ -26,6 +26,8 @@ interface CreateAgentParams {
   voiceName: string;
   greeting: string;
   documents: File[];
+  phoneNumber?: string;
+  countryCode?: string;
   // Configuration options (llmSettings removed - ElevenLabs uses GPT-5.1 by default)
   languages?: LanguageSettings;
   voiceSettings?: VoiceSettings;
@@ -102,7 +104,10 @@ export function useCreateAgent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: elevenLabsAgentId,
-            areaCode: '415' // Default to San Francisco, can be made configurable
+            countryCode: params.countryCode || 'US',
+            ...(params.phoneNumber
+              ? { phoneNumber: params.phoneNumber }
+              : { areaCode: '415' }),
           }),
         });
 
