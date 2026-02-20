@@ -109,6 +109,14 @@ export const get = query({
   },
 });
 
+// Get agent by ID (server-side - no auth required, for webhook use)
+export const getAgentServerSide = query({
+  args: { id: v.id('agents') },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
 // Get agent by ElevenLabs agent ID
 export const getByElevenLabsAgentId = query({
   args: { elevenLabsAgentId: v.string() },

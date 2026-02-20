@@ -354,6 +354,37 @@ export const searchOrdersTool = (
   },
 });
 
+// ==================== SMS TOOL ====================
+
+export const sendSmsTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'send_sms',
+  description: 'Sends an SMS text message to a phone number. Use this to send the customer a link, confirmation, or any information they request via text message during the call.',
+  api_schema: {
+    description: 'This endpoint sends an SMS message to the specified phone number using Twilio. Use it when the customer asks you to text them something (a link, menu, confirmation, etc.).',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/sms?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'Provide the phone number to send the SMS to and the message content.',
+      properties: {
+        phone: {
+          type: 'string',
+          description: 'The phone number to send the SMS to in E.164 format (e.g., +15551234567)',
+        },
+        message: {
+          type: 'string',
+          description: 'The text message content to send',
+        },
+      },
+      required: ['phone', 'message'],
+    },
+  },
+});
+
 // ==================== MENU TOOL ====================
 
 export const getMenuTool = (
@@ -439,4 +470,40 @@ export function getAllToolsWithMenu(
     return [...baseTools, getMenuTool(webhookBaseUrl, restaurantId, agentId)];
   }
   return baseTools;
+}
+
+interface ElevenLabsWebhookTool {
+  type: 'webhook';
+  name: string;
+  description: string;
+  api_schema: {
+    description: string;
+    url: string;
+    method: string;
+    request_body_schema: {
+      description: string;
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+  };
+}
+
+/**
+ * Get all tools with optional menu and SMS tools included
+ * Use this when updating an agent to conditionally include optional tools
+ */
+export function getAllToolsWithOptional(
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string,
+  options: { includeMenuTool?: boolean; includeSmsTool?: boolean } = {}
+): ElevenLabsWebhookTool[] {
+  const tools: ElevenLabsWebhookTool[] = [...getAllTools(webhookBaseUrl, restaurantId, agentId)];
+  if (options.includeMenuTool) {
+    tools.push(getMenuTool(webhookBaseUrl, restaurantId, agentId));
+  }
+  if (options.includeSmsTool) {
+    tools.push(sendSmsTool(webhookBaseUrl, restaurantId, agentId));
+  }
+  return tools;
 }
