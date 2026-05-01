@@ -195,6 +195,10 @@ export const createOrderTool = (
           items: {
             type: 'object',
             properties: {
+              menu_item_id: {
+                type: 'string',
+                description: 'The menu_item_id from the get_menu response. REQUIRED when menu tool is enabled.',
+              },
               name: {
                 type: 'string',
                 description: 'Name of the menu item',
@@ -254,6 +258,10 @@ export const editOrderTool = (
           items: {
             type: 'object',
             properties: {
+              menu_item_id: {
+                type: 'string',
+                description: 'The menu_item_id from the get_menu response. REQUIRED when menu tool is enabled.',
+              },
               name: {
                 type: 'string',
                 description: 'Name of the menu item',
@@ -346,6 +354,59 @@ export const searchOrdersTool = (
   },
 });
 
+// ==================== SMS TOOL ====================
+
+export const sendSmsTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'send_sms',
+  description: 'Sends an SMS text message to a phone number. Use this to send the customer a link, confirmation, or any information they request via text message during the call.',
+  api_schema: {
+    description: 'This endpoint sends an SMS message to the specified phone number using Twilio. Use it when the customer asks you to text them something (a link, menu, confirmation, etc.).',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/sms?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'Provide the phone number to send the SMS to and the message content.',
+      properties: {
+        phone: {
+          type: 'string',
+          description: 'The phone number to send the SMS to in E.164 format (e.g., +15551234567)',
+        },
+        message: {
+          type: 'string',
+          description: 'The text message content to send',
+        },
+      },
+      required: ['phone', 'message'],
+    },
+  },
+});
+
+// ==================== MENU TOOL ====================
+
+export const getMenuTool = (
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string
+) => ({
+  type: 'webhook' as const,
+  name: 'get_menu',
+  description: 'Retrieves the restaurant menu with categories, items, prices, descriptions, and allergen information. Call this when a customer asks about the menu, wants to know what items are available, asks about prices, or wants to know about ingredients or allergens.',
+  api_schema: {
+    description: 'This endpoint fetches the current restaurant menu from the POS system. Returns all active menu categories and items with their details including prices (in dollars), descriptions, and allergen warnings.',
+    url: `${webhookBaseUrl}/api/webhooks/elevenlabs/menu?restaurantId=${restaurantId}&agentId=${agentId}`,
+    method: 'POST',
+    request_body_schema: {
+      description: 'No parameters required. The menu is automatically retrieved for the restaurant.',
+      properties: {},
+      required: [],
+    },
+  },
+});
+
 // ==================== COMBINED TOOL SETS ====================
 
 export function getAllReservationTools(
@@ -392,4 +453,57 @@ export function getAllTools(
     editOrderTool(webhookBaseUrl, restaurantId, agentId),
     cancelOrderTool(webhookBaseUrl, restaurantId, agentId),
   ];
+}
+
+/**
+ * Get all tools with optional menu tool included
+ * Use this when updating an agent to conditionally include the menu tool
+ */
+export function getAllToolsWithMenu(
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string,
+  includeMenuTool: boolean = false
+) {
+  const baseTools = getAllTools(webhookBaseUrl, restaurantId, agentId);
+  if (includeMenuTool) {
+    return [...baseTools, getMenuTool(webhookBaseUrl, restaurantId, agentId)];
+  }
+  return baseTools;
+}
+
+interface ElevenLabsWebhookTool {
+  type: 'webhook';
+  name: string;
+  description: string;
+  api_schema: {
+    description: string;
+    url: string;
+    method: string;
+    request_body_schema: {
+      description: string;
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+  };
+}
+
+/**
+ * Get all tools with optional menu and SMS tools included
+ * Use this when updating an agent to conditionally include optional tools
+ */
+export function getAllToolsWithOptional(
+  webhookBaseUrl: string,
+  restaurantId: string,
+  agentId: string,
+  options: { includeMenuTool?: boolean; includeSmsTool?: boolean } = {}
+): ElevenLabsWebhookTool[] {
+  const tools: ElevenLabsWebhookTool[] = [...getAllTools(webhookBaseUrl, restaurantId, agentId)];
+  if (options.includeMenuTool) {
+    tools.push(getMenuTool(webhookBaseUrl, restaurantId, agentId));
+  }
+  if (options.includeSmsTool) {
+    tools.push(sendSmsTool(webhookBaseUrl, restaurantId, agentId));
+  }
+  return tools;
 }

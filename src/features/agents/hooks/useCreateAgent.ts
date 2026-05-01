@@ -4,6 +4,18 @@ import { useState } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
+import {
+  LanguageSettings,
+  VoiceSettings,
+  ConversationBehavior,
+  FirstMessageSettings,
+  AudioSettings,
+  DEFAULT_LANGUAGE_SETTINGS,
+  DEFAULT_VOICE_SETTINGS,
+  DEFAULT_CONVERSATION_BEHAVIOR,
+  DEFAULT_FIRST_MESSAGE_SETTINGS,
+  DEFAULT_AUDIO_SETTINGS,
+} from '../types/agent-config.types';
 
 interface CreateAgentParams {
   restaurantId: Id<'restaurants'>;
@@ -14,6 +26,14 @@ interface CreateAgentParams {
   voiceName: string;
   greeting: string;
   documents: File[];
+  phoneNumber?: string;
+  countryCode?: string;
+  // Configuration options (llmSettings removed - ElevenLabs uses GPT-5.1 by default)
+  languages?: LanguageSettings;
+  voiceSettings?: VoiceSettings;
+  conversationBehavior?: ConversationBehavior;
+  firstMessageSettings?: FirstMessageSettings;
+  audioSettings?: AudioSettings;
 }
 
 export function useCreateAgent() {
@@ -25,6 +45,27 @@ export function useCreateAgent() {
   const createAgent = async (params: CreateAgentParams) => {
     setIsCreating(true);
     setError(null);
+
+    // Merge with defaults
+    const languages = { ...DEFAULT_LANGUAGE_SETTINGS, ...params.languages };
+    const voiceSettings: VoiceSettings = {
+      ...DEFAULT_VOICE_SETTINGS,
+      ...params.voiceSettings,
+      primaryVoice: {
+        ...DEFAULT_VOICE_SETTINGS.primaryVoice,
+        voiceId: params.voiceId,
+        voiceName: params.voiceName,
+        ...params.voiceSettings?.primaryVoice,
+      },
+    };
+    // Note: llmSettings removed - ElevenLabs uses GPT-5.1 by default
+    const conversationBehavior = { ...DEFAULT_CONVERSATION_BEHAVIOR, ...params.conversationBehavior };
+    const firstMessageSettings: FirstMessageSettings = {
+      ...DEFAULT_FIRST_MESSAGE_SETTINGS,
+      defaultMessage: params.greeting,
+      ...params.firstMessageSettings,
+    };
+    const audioSettings = { ...DEFAULT_AUDIO_SETTINGS, ...params.audioSettings };
 
     try {
       // Step 1: Create agent in ElevenLabs
@@ -38,6 +79,12 @@ export function useCreateAgent() {
           agentName: params.agentName,
           voiceId: params.voiceId,
           greeting: params.greeting,
+          // Configuration options (llmSettings removed - ElevenLabs uses GPT-5.1)
+          languages,
+          voiceSettings,
+          conversationBehavior,
+          firstMessageSettings,
+          audioSettings,
         }),
       });
 
@@ -57,7 +104,10 @@ export function useCreateAgent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: elevenLabsAgentId,
-            areaCode: '415' // Default to San Francisco, can be made configurable
+            countryCode: params.countryCode || 'US',
+            ...(params.phoneNumber
+              ? { phoneNumber: params.phoneNumber }
+              : { areaCode: '415' }),
           }),
         });
 
@@ -115,6 +165,12 @@ export function useCreateAgent() {
         name: params.agentName,
         greeting: params.greeting,
         phoneNumber,
+        // Configuration options (llmSettings removed - ElevenLabs uses GPT-5.1)
+        languages,
+        voiceSettings,
+        conversationBehavior,
+        firstMessageSettings,
+        audioSettings,
       });
 
       // Step 5: Update agent webhooks with correct Convex agentId and include knowledge base

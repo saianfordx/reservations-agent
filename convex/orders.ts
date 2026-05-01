@@ -45,6 +45,7 @@ export const create = mutation({
     customerPhone: v.string(),
     items: v.array(
       v.object({
+        menuItemId: v.optional(v.string()), // The Account POS menu item ID
         name: v.string(),
         quantity: v.number(),
         specialInstructions: v.optional(v.string()),
@@ -167,6 +168,22 @@ export const create = mutation({
       adminEmails,
     });
 
+    // Forward order to The Account POS if integration is enabled
+    // @ts-ignore - Type instantiation depth issue with Convex internal types
+    ctx.scheduler.runAfter(0, internal.integrations.forwardOrderToTheAccount, {
+      restaurantId: args.restaurantId,
+      orderData: {
+        orderId,
+        customerName: args.customerName,
+        customerPhone: args.customerPhone,
+        items: args.items,
+        orderNotes: args.orderNotes,
+        pickupTime: args.pickupTime,
+        pickupDate: args.pickupDate,
+      },
+      agentId: args.agentId.toString(),
+    });
+
     return {
       id,
       orderId,
@@ -184,6 +201,7 @@ export const update = mutation({
     items: v.optional(
       v.array(
         v.object({
+          menuItemId: v.optional(v.string()), // The Account POS menu item ID
           name: v.string(),
           quantity: v.number(),
           specialInstructions: v.optional(v.string()),
@@ -575,6 +593,7 @@ export const createManual = mutation({
     customerPhone: v.string(),
     items: v.array(
       v.object({
+        menuItemId: v.optional(v.string()), // The Account POS menu item ID
         name: v.string(),
         quantity: v.number(),
         specialInstructions: v.optional(v.string()),
@@ -699,6 +718,22 @@ export const createManual = mutation({
       adminEmails,
     });
 
+    // Forward order to The Account POS if integration is enabled
+    // @ts-ignore - Type instantiation depth issue with Convex internal types
+    ctx.scheduler.runAfter(0, internal.integrations.forwardOrderToTheAccount, {
+      restaurantId: args.restaurantId,
+      orderData: {
+        orderId,
+        customerName: args.customerName,
+        customerPhone: args.customerPhone,
+        items: args.items,
+        orderNotes: args.orderNotes,
+        pickupTime: args.pickupTime,
+        pickupDate: args.pickupDate,
+      },
+      agentId: 'manual-dashboard',
+    });
+
     return {
       id,
       orderId,
@@ -717,6 +752,7 @@ export const updateManual = mutation({
     items: v.optional(
       v.array(
         v.object({
+          menuItemId: v.optional(v.string()), // The Account POS menu item ID
           name: v.string(),
           quantity: v.number(),
           specialInstructions: v.optional(v.string()),

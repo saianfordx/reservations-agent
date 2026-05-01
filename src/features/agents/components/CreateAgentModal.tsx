@@ -12,6 +12,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { VoiceSelector } from './VoiceSelector';
+import { PhoneNumberSelector } from './PhoneNumberSelector';
 import { useCreateAgent } from '../hooks/useCreateAgent';
 import { useRestaurant } from '@/features/restaurants/hooks/useRestaurants';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -27,7 +28,7 @@ interface CreateAgentModalProps {
   isOnboarding?: boolean;
 }
 
-type Step = 'config' | 'voice' | 'documents' | 'review';
+type Step = 'config' | 'voice' | 'documents' | 'phone' | 'review';
 
 export function CreateAgentModal({
   restaurantId,
@@ -47,8 +48,10 @@ export function CreateAgentModal({
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<File[]>([]);
+  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string | null>(null);
+  const [selectedCountryCode, setSelectedCountryCode] = useState('US');
 
-  const steps: Step[] = ['config', 'voice', 'documents', 'review'];
+  const steps: Step[] = ['config', 'voice', 'documents', 'phone', 'review'];
   const currentStepIndex = steps.indexOf(step);
 
   const handleNext = () => {
@@ -80,6 +83,8 @@ export function CreateAgentModal({
         voiceName: selectedVoiceName,
         greeting: greeting || `Thank you for calling ${restaurant.name}. How may I help you today?`,
         documents: uploadedDocs,
+        phoneNumber: selectedPhoneNumber || undefined,
+        countryCode: selectedCountryCode,
       });
 
       console.log('Agent created successfully:', result);
@@ -103,6 +108,8 @@ export function CreateAgentModal({
       setSelectedVoiceId(null);
       setSelectedVoiceName(null);
       setUploadedDocs([]);
+      setSelectedPhoneNumber(null);
+      setSelectedCountryCode('US');
 
       onOpenChange(false);
     } catch (err) {
@@ -218,6 +225,16 @@ export function CreateAgentModal({
           </div>
         );
 
+      case 'phone':
+        return (
+          <PhoneNumberSelector
+            selectedPhoneNumber={selectedPhoneNumber}
+            selectedCountryCode={selectedCountryCode}
+            onPhoneNumberSelect={setSelectedPhoneNumber}
+            onCountryCodeChange={setSelectedCountryCode}
+          />
+        );
+
       case 'review':
         return (
           <div className="space-y-4">
@@ -247,6 +264,15 @@ export function CreateAgentModal({
                   {uploadedDocs.length} file(s) uploaded
                 </div>
               </div>
+
+              <div>
+                <div className="text-sm text-muted-foreground/80">
+                  Phone Number
+                </div>
+                <div className="font-medium font-mono">
+                  {selectedPhoneNumber || 'Auto-assigned'}
+                </div>
+              </div>
             </div>
 
             <div className="rounded-lg bg-primary/10 p-4">
@@ -270,6 +296,7 @@ export function CreateAgentModal({
             {step === 'config' && 'Configuration'}
             {step === 'voice' && 'Voice Selection'}
             {step === 'documents' && 'Knowledge Base'}
+            {step === 'phone' && 'Phone Number'}
             {step === 'review' && 'Review & Create'}
           </DialogDescription>
         </DialogHeader>

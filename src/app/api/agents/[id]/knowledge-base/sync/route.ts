@@ -69,7 +69,7 @@ export async function POST(
 
     // Get existing prompt config and strip out tools/tool_ids to avoid conflicts
     const existingPrompt = currentAgent.conversation_config?.agent?.prompt || {};
-    const { tools, tool_ids, ...promptWithoutTools } = existingPrompt;
+    const { tools: _tools, tool_ids: _toolIds, ...promptWithoutTools } = existingPrompt;
 
     // Update ElevenLabs agent with new knowledge base
     const updateResponse = await fetch(

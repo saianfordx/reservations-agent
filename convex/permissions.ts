@@ -53,6 +53,10 @@ export const RestaurantPermission = {
   // Analytics & Reports
   VIEW_ANALYTICS: 'analytics:view',
   EXPORT_DATA: 'analytics:export',
+
+  // Integration Management
+  VIEW_INTEGRATIONS: 'integration:view',
+  EDIT_INTEGRATIONS: 'integration:edit',
 } as const;
 
 // ============================================
@@ -77,6 +81,8 @@ export const RolePermissions = {
     RestaurantPermission.CANCEL_RESERVATION,
     RestaurantPermission.VIEW_ANALYTICS,
     RestaurantPermission.EXPORT_DATA,
+    RestaurantPermission.VIEW_INTEGRATIONS,
+    RestaurantPermission.EDIT_INTEGRATIONS,
   ],
 
   [RestaurantRole.MANAGER]: [
@@ -94,6 +100,8 @@ export const RolePermissions = {
     RestaurantPermission.CANCEL_RESERVATION,
     RestaurantPermission.VIEW_ANALYTICS,
     RestaurantPermission.EXPORT_DATA,
+    RestaurantPermission.VIEW_INTEGRATIONS,
+    RestaurantPermission.EDIT_INTEGRATIONS,
   ],
 
   [RestaurantRole.HOST]: [
@@ -110,6 +118,7 @@ export const RolePermissions = {
     RestaurantPermission.VIEW_AGENTS,
     RestaurantPermission.VIEW_RESERVATIONS,
     RestaurantPermission.VIEW_ANALYTICS,
+    RestaurantPermission.VIEW_INTEGRATIONS,
   ],
 } as const;
 

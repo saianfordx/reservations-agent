@@ -1,12 +1,15 @@
 import { v } from 'convex/values';
-import { internalAction, query } from './_generated/server';
+import { action, internalAction, query, internalQuery } from './_generated/server';
+import { internal } from './_generated/api';
 import { Resend } from 'resend';
+import OpenAI from 'openai';
 
 /**
  * Helper function to delay execution (for rate limiting)
  * Resend allows 2 requests per second, so we wait 600ms between sends
  */
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 
 /**
  * Get admin emails for a restaurant (public query)
@@ -60,6 +63,75 @@ export const getAdminEmails = query({
       }
     }
 
+    return emails;
+  },
+});
+
+// Internal query version (no auth) for webhook processing
+export const getAdminEmailsInternal = internalQuery({
+  args: {
+    restaurantId: v.id('restaurants'),
+  },
+  handler: async (ctx, args) => {
+    const restaurant = await ctx.db.get(args.restaurantId);
+
+    if (!restaurant) {
+      return [];
+    }
+
+    const emails: string[] = [];
+
+    // If restaurant belongs to an organization
+    if (restaurant.organizationId) {
+      // Get the organization owner
+      const organization = await ctx.db.get(restaurant.organizationId);
+      if (organization) {
+        const orgOwner = await ctx.db.get(organization.createdBy);
+        if (orgOwner?.email) {
+          emails.push(orgOwner.email);
+        }
+      }
+
+      // Get restaurant managers only (not owners)
+      const restaurantAccess = await ctx.db
+        .query('restaurantAccess')
+        .withIndex('by_restaurant', (q) => q.eq('restaurantId', args.restaurantId))
+        .collect();
+
+      const restaurantManagers = restaurantAccess.filter(
+        (access) => access.role === 'restaurant:manager'
+      );
+
+      for (const access of restaurantManagers) {
+        const user = await ctx.db.get(access.userId);
+        if (user?.email && !emails.includes(user.email)) {
+          emails.push(user.email);
+        }
+      }
+    } else if (restaurant.ownerId) {
+      // Personal account - get owner email
+      const owner = await ctx.db.get(restaurant.ownerId);
+      if (owner?.email) {
+        emails.push(owner.email);
+      }
+    }
+
+    // Add notification emails from restaurant settings
+    const restaurantData = restaurant as any;
+    console.log('Restaurant settings:', restaurantData.settings);
+    console.log('Notification emails from settings:', restaurantData.settings?.notificationEmails);
+
+    if (restaurantData.settings?.notificationEmails && Array.isArray(restaurantData.settings.notificationEmails)) {
+      console.log('Found notification emails in settings:', restaurantData.settings.notificationEmails);
+      for (const email of restaurantData.settings.notificationEmails) {
+        console.log('Adding email:', email);
+        if (email && !emails.includes(email)) {
+          emails.push(email);
+        }
+      }
+    }
+
+    console.log('Final admin emails from getAdminEmailsInternal:', emails);
     return emails;
   },
 });
@@ -1140,6 +1212,584 @@ export const sendOrderUpdateNotification = internalAction({
       };
     } catch (error: any) {
       console.error('Failed to send order update notifications:', error);
+      return { success: false, error: error.message };
+    }
+  },
+});
+
+/**
+ * Analyze call transcript with OpenAI
+ */
+interface CallAnalysis {
+  call_subject: string;
+  summary: string;
+  sentiment_score: number;
+  sentiment_label: 'Happy' | 'Neutral' | 'Frustrated';
+  customer_name_provided: boolean;
+  customer_name: string;
+  action_taken: string;
+  issues: string;
+  follow_up_needed: boolean;
+  follow_up_reason: string;
+}
+
+async function analyzeCallWithOpenAI(transcript: string): Promise<CallAnalysis> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are analyzing customer service call transcripts for restaurants. Provide concise, accurate analysis in JSON format.',
+      },
+      {
+        role: 'user',
+        content: `Analyze this restaurant call transcript:
+
+${transcript}
+
+Please provide:
+
+1. CALL_SUBJECT: A short, concise subject line for an email (max 6-8 words). This should capture the main purpose of the call. Examples:
+   - "Reservation - Tuesday 7pm for 4"
+   - "To-Go Order - Pickup 6pm"
+   - "Menu Inquiry - Gluten-Free Options"
+   - "Cancellation - Friday Reservation"
+   - "Complaint - Long Wait Time"
+   - "General Question - Operating Hours"
+
+2. SUMMARY: A brief 2-3 sentence summary of what happened on this call. Include the purpose of the call and any outcomes (reservation made, order placed, just inquiring, etc.)
+
+3. SENTIMENT_SCORE: Rate the customer's sentiment on a scale of 0-10:
+   - 0-4: Frustrated, upset, annoyed, had complaints
+   - 5-7: Neutral, transactional, just getting information
+   - 8-10: Happy, pleasant, satisfied, friendly
+
+4. KEY_DETAILS:
+   - Customer provided name: yes/no
+   - Customer name: Extract the actual customer name if provided in the conversation, otherwise use "Not provided"
+   - Action taken: (e.g., "Made reservation for 4 guests on Friday at 7pm", "Placed to-go order", "Just checking menu", "No action taken")
+   - Issues or complaints: (if any)
+   - Follow-up needed: yes/no (and why)
+
+Format your response as JSON:
+{
+  "call_subject": "Reservation - Tuesday 7pm for 4",
+  "summary": "...",
+  "sentiment_score": 8,
+  "sentiment_label": "Happy",
+  "customer_name_provided": true,
+  "customer_name": "John Smith",
+  "action_taken": "...",
+  "issues": "",
+  "follow_up_needed": false,
+  "follow_up_reason": ""
+}`,
+      },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.3,
+  });
+
+  const analysis = JSON.parse(completion.choices[0].message.content || '{}');
+
+  return analysis as CallAnalysis;
+}
+
+/**
+ * Build email HTML template for call completion notification
+ */
+function buildCallEmailTemplate(params: {
+  restaurant: any;
+  agent: any;
+  analysis: CallAnalysis;
+  callData: {
+    timestamp: number;
+    duration?: number;
+    callerPhoneNumber?: string;
+    restaurantPhoneNumber?: string;
+    callProvider?: string;
+  };
+  conversationId: string;
+  fullTranscript?: string;
+}) {
+  const { restaurant, agent, analysis, callData, conversationId, fullTranscript } = params;
+
+  // Sentiment badge color
+  const sentimentColor =
+    analysis.sentiment_score >= 8
+      ? '#10b981' // green
+      : analysis.sentiment_score >= 5
+        ? '#f59e0b' // yellow
+        : '#ef4444'; // red
+
+  const formattedDate = new Date(callData.timestamp * 1000).toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Los_Angeles',
+  });
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Call - ${restaurant.name}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center;">
+          <h1 style="margin: 0; color: white; font-size: 24px;">📞 ${analysis.call_subject}</h1>
+          <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">${restaurant.name}</p>
+        </div>
+
+        <!-- Sentiment Badge -->
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="display: inline-block; background-color: ${sentimentColor}; color: white; padding: 8px 20px; border-radius: 20px; font-weight: 600; font-size: 14px;">
+            ${analysis.sentiment_label} Customer (${analysis.sentiment_score}/10)
+          </div>
+        </div>
+
+        <!-- Call Summary -->
+        <div style="background-color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <h2 style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
+            📝 Call Summary
+          </h2>
+          <p style="margin: 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+            ${analysis.summary}
+          </p>
+        </div>
+
+        <!-- Call Details -->
+        <div style="background-color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <h2 style="margin: 0 0 16px 0; color: #1a1a1a; font-size: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
+            📊 Call Details
+          </h2>
+
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280; width: 140px;">Date & Time:</td>
+              <td style="padding: 8px 0; color: #1f2937;">${formattedDate}</td>
+            </tr>
+            ${
+              callData.callerPhoneNumber
+                ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Caller Number:</td>
+              <td style="padding: 8px 0; color: #1f2937; font-family: monospace; font-weight: 600; font-size: 15px;">
+                📞 ${callData.callerPhoneNumber}
+              </td>
+            </tr>
+            `
+                : ''
+            }
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Customer Name:</td>
+              <td style="padding: 8px 0; color: #1f2937;">
+                ${analysis.customer_name_provided ? `✅ ${analysis.customer_name}` : '❌ Not provided'}
+              </td>
+            </tr>
+            ${
+              callData.duration
+                ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Duration:</td>
+              <td style="padding: 8px 0; color: #1f2937;">${Math.floor(callData.duration / 60)}m ${callData.duration % 60}s</td>
+            </tr>
+            `
+                : ''
+            }
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Agent:</td>
+              <td style="padding: 8px 0; color: #1f2937;">${agent.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #6b7280;">Action Taken:</td>
+              <td style="padding: 8px 0; color: #1f2937;">${analysis.action_taken}</td>
+            </tr>
+          </table>
+
+          ${
+            analysis.issues
+              ? `
+          <div style="margin-top: 16px; padding: 12px; background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px;">
+            <p style="margin: 0; color: #991b1b; font-weight: 600; font-size: 13px;">⚠️ Issues Reported:</p>
+            <p style="margin: 4px 0 0 0; color: #7f1d1d; font-size: 14px;">${analysis.issues}</p>
+          </div>
+          `
+              : ''
+          }
+
+          ${
+            analysis.follow_up_needed
+              ? `
+          <div style="margin-top: 16px; padding: 12px; background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+            <p style="margin: 0; color: #92400e; font-weight: 600; font-size: 13px;">👀 Follow-up Needed</p>
+            <p style="margin: 4px 0 0 0; color: #78350f; font-size: 14px;">${analysis.follow_up_reason || 'Action required'}</p>
+          </div>
+          `
+              : ''
+          }
+        </div>
+
+        <!-- Audio Recording -->
+        <div style="background-color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center;">
+          <h2 style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 18px;">🎧 Call Recording</h2>
+          <p style="margin: 0 0 16px 0; color: #6b7280; font-size: 14px;">
+            The full call recording is attached to this email.<br>
+            Click the MP3 file to listen.
+          </p>
+          <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; display: inline-block;">
+            <p style="margin: 0; color: #374151; font-size: 13px;">
+              📎 <strong>call-${conversationId.substring(0, 12)}....mp3</strong>
+            </p>
+          </div>
+        </div>
+
+        ${
+          fullTranscript
+            ? `
+        <!-- Full Transcript -->
+        <div style="background-color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <h2 style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
+            📝 Full Conversation Transcript
+          </h2>
+          <div style="background-color: #f9fafb; padding: 16px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb;">
+            <pre style="font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace; font-size: 13px; line-height: 1.8; color: #374151; white-space: pre-wrap; margin: 0; word-wrap: break-word;">${fullTranscript}</pre>
+          </div>
+          <p style="margin: 12px 0 0 0; color: #9ca3af; font-size: 12px; text-align: center;">
+            💡 Tip: Scroll within the transcript box to read the full conversation
+          </p>
+        </div>
+        `
+            : ''
+        }
+
+        <!-- Footer -->
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center;">
+          <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+            This is an automated notification from your restaurant's AI phone system.<br>
+            You're receiving this because you manage ${restaurant.name}.
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+/**
+ * Send email notification when a call is completed
+ * Includes AI-generated summary and sentiment analysis
+ */
+export const sendCallCompletionNotification = action({
+  args: {
+    conversationId: v.string(),
+    agentId: v.string(),
+    restaurantId: v.string(),
+    agentName: v.string(),
+    restaurantName: v.string(),
+    transcript: v.string(),
+    adminEmails: v.array(v.string()),
+    callData: v.object({
+      timestamp: v.number(),
+      duration: v.optional(v.number()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    try {
+      console.log('Processing call completion notification:', args.conversationId);
+
+      const { adminEmails, agentName, restaurantName } = args;
+
+      if (adminEmails.length === 0) {
+        console.log('No admin emails found for restaurant:', restaurantName);
+        return { success: false, error: 'No admin emails found' };
+      }
+
+      // Build agent and restaurant objects from provided data
+      const agent = { _id: args.agentId, name: agentName };
+      const restaurant = { _id: args.restaurantId, name: restaurantName };
+
+      // 3. Analyze call with OpenAI
+      console.log('Analyzing call with OpenAI...');
+      const analysis = await analyzeCallWithOpenAI(args.transcript);
+      console.log('OpenAI analysis complete:', {
+        call_subject: analysis.call_subject,
+        sentiment: analysis.sentiment_label,
+      });
+
+      // 4. Fetch audio from ElevenLabs
+      console.log('Fetching audio from ElevenLabs...');
+      const audioResponse = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversations/${args.conversationId}/audio`,
+        {
+          headers: {
+            'xi-api-key': process.env.ELEVENLABS_API_KEY!,
+          },
+        }
+      );
+
+      if (!audioResponse.ok) {
+        throw new Error(`Failed to fetch audio: ${audioResponse.statusText}`);
+      }
+
+      const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+      const audioSizeMB = audioBuffer.byteLength / (1024 * 1024);
+      console.log(`Audio fetched: ${audioSizeMB.toFixed(2)} MB`);
+
+      // 5. Build email HTML
+      const emailHtml = buildCallEmailTemplate({
+        restaurant,
+        agent,
+        analysis,
+        callData: args.callData,
+        conversationId: args.conversationId,
+      });
+
+      // 6. Send email with MP3 attachment (or fallback link if too large)
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const results = [];
+
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+        console.log(`Sending call notification to: ${email} (${i + 1}/${adminEmails.length})`);
+
+        try {
+          // Check if audio is too large (>35MB to leave buffer for base64 encoding)
+          const emailOptions: any = {
+            from: 'Calls <calls@updates.nerdvi.ai>',
+            to: email,
+            subject: `📞 ${analysis.call_subject} - ${restaurant.name}`,
+            html: emailHtml,
+          };
+
+          if (audioSizeMB <= 35) {
+            // Attach audio file
+            emailOptions.attachments = [
+              {
+                filename: `call-${args.conversationId}.mp3`,
+                content: audioBuffer,
+              },
+            ];
+          } else {
+            // Audio too large - add note in email (would need to add fallback link in template)
+            console.warn(
+              `Audio too large (${audioSizeMB.toFixed(2)} MB), skipping attachment`
+            );
+          }
+
+          const { data, error } = await resend.emails.send(emailOptions);
+
+          if (error) {
+            console.error(`Error sending call notification to ${email}:`, error);
+            results.push({ success: false, email, error: error.message });
+          } else {
+            console.log(`Call notification sent successfully to ${email}, ID: ${data?.id}`);
+            results.push({ success: true, email, emailId: data?.id });
+          }
+        } catch (error: any) {
+          console.error(`Error sending to ${email}:`, error);
+          results.push({ success: false, email, error: error.message });
+        }
+
+        // Rate limiting (2 emails/second)
+        if (i < adminEmails.length - 1) {
+          await delay(600);
+        }
+      }
+
+      const successCount = results.filter((r) => r.success).length;
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} call notifications`);
+
+      return {
+        success: successCount > 0,
+        totalSent: successCount,
+        totalFailed: results.filter((r) => !r.success).length,
+        results,
+      };
+    } catch (error: any) {
+      console.error('Failed to send call completion notifications:', error);
+      return { success: false, error: error.message };
+    }
+  },
+});
+
+/**
+ * Process post-call webhook - public action called from webhook endpoint
+ * Looks up agent, restaurant, and admin emails using internal queries, then sends notification
+ */
+export const processPostCallWebhook = action({
+  args: {
+    conversationId: v.string(),
+    elevenLabsAgentId: v.string(), // ElevenLabs agent ID (not Convex ID)
+    transcript: v.string(),
+    eventTimestamp: v.optional(v.number()),
+    callDuration: v.optional(v.number()),
+    callerPhoneNumber: v.optional(v.string()),
+    restaurantPhoneNumber: v.optional(v.string()),
+    callProvider: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; error?: string; totalSent?: number; totalFailed?: number; results?: any[] }> => {
+    try {
+      console.log('🔔 Processing post-call webhook:', args.conversationId);
+
+      // 1. Look up agent by ElevenLabs agent ID using internal query
+      const agent = (await ctx.runQuery(internal.agents.getByElevenLabsAgentIdInternal, {
+        elevenLabsAgentId: args.elevenLabsAgentId,
+      })) as any;
+
+      if (!agent) {
+        console.error('❌ Agent not found for ElevenLabs agent_id:', args.elevenLabsAgentId);
+        return { success: false, error: 'Agent not found' };
+      }
+
+      console.log('✅ Found agent:', agent._id, '- Restaurant:', agent.restaurantId);
+
+      // 2. Get restaurant details using internal query
+      const restaurant = (await ctx.runQuery(internal.restaurants.getRestaurantInternal, {
+        id: agent.restaurantId,
+      })) as any;
+
+      if (!restaurant) {
+        console.error('❌ Restaurant not found:', agent.restaurantId);
+        return { success: false, error: 'Restaurant not found' };
+      }
+
+      // 3. Get admin emails using internal query
+      const adminEmails = (await ctx.runQuery(internal.notifications.getAdminEmailsInternal, {
+        restaurantId: agent.restaurantId,
+      })) as string[];
+
+      if (adminEmails.length === 0) {
+        console.warn('⚠️ No admin emails found for restaurant:', restaurant.name);
+        return { success: false, error: 'No admin emails found' };
+      }
+
+      console.log(`✅ Found ${adminEmails.length} admin email(s)`);
+
+      // 4. Analyze call with OpenAI
+      console.log('Analyzing call with OpenAI...');
+      const analysis = await analyzeCallWithOpenAI(args.transcript);
+      console.log('OpenAI analysis complete:', {
+        call_subject: analysis.call_subject,
+        sentiment: analysis.sentiment_label,
+      });
+
+      // 5. Fetch audio from ElevenLabs
+      console.log('Fetching audio from ElevenLabs...');
+      const audioResponse = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversations/${args.conversationId}/audio`,
+        {
+          headers: {
+            'xi-api-key': process.env.ELEVENLABS_API_KEY!,
+          },
+        }
+      );
+
+      if (!audioResponse.ok) {
+        console.error('Failed to fetch audio:', audioResponse.statusText);
+        return { success: false, error: 'Failed to fetch audio' };
+      }
+
+      const arrayBuffer = await audioResponse.arrayBuffer();
+      const audioBuffer = new Uint8Array(arrayBuffer);
+      const audioSizeMB = audioBuffer.length / (1024 * 1024);
+      console.log(`Audio fetched: ${audioSizeMB.toFixed(2)} MB`);
+
+      // Convert Uint8Array to Base64 string for email attachment
+      // Resend requires attachments as Base64 strings or Buffer (Node.js only)
+      let binary = '';
+      const chunkSize = 8192; // Process in chunks to avoid stack overflow
+      for (let i = 0; i < audioBuffer.length; i += chunkSize) {
+        const chunk = audioBuffer.subarray(i, Math.min(i + chunkSize, audioBuffer.length));
+        binary += String.fromCharCode(...chunk);
+      }
+      const base64Audio = btoa(binary);
+      console.log('Converted audio to base64, length:', base64Audio.length);
+
+      // 6. Build email content
+      const agentData = { _id: agent._id, name: agent.name };
+      const restaurantData = { _id: agent.restaurantId, name: restaurant.name };
+
+      const emailHtml = buildCallEmailTemplate({
+        agent: agentData,
+        restaurant: restaurantData,
+        conversationId: args.conversationId,
+        analysis,
+        callData: {
+          timestamp: args.eventTimestamp || Date.now() / 1000,
+          duration: args.callDuration,
+          callerPhoneNumber: args.callerPhoneNumber,
+          restaurantPhoneNumber: args.restaurantPhoneNumber,
+          callProvider: args.callProvider,
+        },
+        fullTranscript: args.transcript,
+      });
+
+      // 7. Send emails to all admins with Resend
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const results = [];
+      let successCount = 0;
+
+      for (let i = 0; i < adminEmails.length; i++) {
+        const email = adminEmails[i];
+
+        try {
+          console.log(`Sending call notification to: ${email} (${i + 1}/${adminEmails.length})`);
+
+          const emailData: any = {
+            from: 'Calls <calls@updates.nerdvi.ai>',
+            to: email,
+            subject: `📞 ${analysis.call_subject} - ${restaurant.name}`,
+            html: emailHtml,
+          };
+
+          // Only attach MP3 if less than 35MB (Resend limit is 40MB)
+          if (audioSizeMB < 35) {
+            emailData.attachments = [
+              {
+                filename: `call-${args.conversationId}.mp3`,
+                content: base64Audio,
+              },
+            ];
+          } else {
+            console.warn(`Audio too large (${audioSizeMB.toFixed(2)} MB) to attach to email`);
+          }
+
+          const result = await resend.emails.send(emailData);
+
+          console.log(`Call notification sent successfully to ${email}`);
+          results.push({ email, success: true, id: result.data?.id });
+          successCount++;
+
+          // Rate limit: Resend allows 2 requests per second
+          if (i < adminEmails.length - 1) {
+            await delay(600);
+          }
+        } catch (error: any) {
+          console.error(`Failed to send call notification to ${email}:`, error.message);
+          results.push({ email, success: false, error: error.message });
+        }
+      }
+
+      console.log(`Successfully sent ${successCount}/${adminEmails.length} call notifications`);
+
+      return {
+        success: successCount > 0,
+        totalSent: successCount,
+        totalFailed: results.filter((r) => !r.success).length,
+        results,
+      };
+    } catch (error: any) {
+      console.error('❌ Error processing post-call webhook:', error);
       return { success: false, error: error.message };
     }
   },

@@ -102,9 +102,11 @@ When a customer wants to modify or cancel an order:
 Important: All tools (reservations and orders) will wait for a response before continuing. If there's an error, inform the customer and ask for valid information.`;
 
     // Build the prompt config with both tools and knowledge base (if provided)
+    // Note: reasoning_effort must be null for gpt-4o-mini (it doesn't support reasoning)
     const promptConfig: Record<string, unknown> = {
       prompt: agentPrompt,
       llm: 'gpt-4o-mini',
+      reasoning_effort: null,
       tools: tools,
     };
 
